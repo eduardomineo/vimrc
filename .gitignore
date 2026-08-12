@@ -1,0 +1,25 @@
+# Vim swap, backup, and undo files
+*.swp
+*.swo
+*.swn
+*~
+*.un~
+
+# Sessions, views, logs, and histories
+Session.vim
+*.session.vim
+view/
+*.log
+fzf-history/
+.netrwhist
+
+# OS and editor metadata
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Local environment overrides
+.env
+.env.*
+!.env.example
