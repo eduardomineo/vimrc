@@ -741,11 +741,21 @@ function! GlowPreview()
   endif
 
   " Do not let BufWinEnter mirror NERDTree while creating the preview tab.
+  " term_start() below is included too: it replaces this new tab's empty
+  " buffer with a terminal one, which fires its own WinEnter/BufEnter —
+  " and minimap.vim's WinEnter handler reacts to that transient window by
+  " trying to synchronously close itself (no companion window in a brand
+  " new tab yet), hitting Vim's E1312 ("not allowed to change the window
+  " layout in this autocmd") since minimap has no guard against this the
+  " way our own code does elsewhere in this vimrc, which then corrupts
+  " its window-tracking state and cascades into E957 shortly after.
+  " Keeping this whole sequence noautocmd means minimap never sees the
+  " transient window at all.
   noautocmd tabnew
   let t:glow_preview = 1
   let l:winid = win_getid()
 
-  call term_start(
+  noautocmd call term_start(
         \ ['glow', '-p', l:file],
         \ {
         \   'curwin': 1,

@@ -269,7 +269,7 @@ Open a saved Markdown file and run:
 :Glow
 ```
 
-Glow opens in a temporary terminal tab. Press `q` inside Glow; its terminal and tab close automatically. NERDTree is not mirrored into Glow tabs.
+Glow opens in a temporary terminal tab. Press `q` inside Glow; its terminal and tab close automatically. NERDTree is not mirrored into Glow tabs — minimap is kept out of it too, for the same reason (see below).
 
 ### Persistent undo
 
