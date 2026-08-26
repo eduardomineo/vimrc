@@ -22,6 +22,10 @@ Plugin 'ryanoasis/vim-devicons'
 Plugin 'airblade/vim-gitgutter.git'
 Plugin 'junegunn/fzf'
 Plugin 'junegunn/fzf.vim'
+" Renders via the external 'code-minimap' binary (cargo install
+" --locked code-minimap); Vundle has no post-install hook to fetch it
+" automatically, so that step is manual — see README.
+Plugin 'wfxr/minimap.vim'
 
 call vundle#end()
 
@@ -397,6 +401,14 @@ nnoremap <silent> <leader>h :nohlsearch<CR>
 let g:airline#extensions#tabline#enabled=1
 let g:airline#extensions#tabline#formatter = 'default'
 let g:airline_powerline_fonts = 1
+
+""""""""""""""""""""""""""""
+" Minimap Config           "
+""""""""""""""""""""""""""""
+let g:minimap_auto_start = 1
+let g:minimap_width = 10
+
+nnoremap <silent> <leader>mm :MinimapToggle<CR>
 
 """"""""""""""""""""""""""""
 " Theme                    "

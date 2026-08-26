@@ -1,6 +1,6 @@
 # Vim development environment
 
-A practical Ubuntu-oriented Vim setup built around NERDTree, FZF, ripgrep, coc.nvim (with Volar for Vue), Fugitive, GitGutter, Airline, and Glow.
+A practical Ubuntu-oriented Vim setup built around NERDTree, FZF, ripgrep, coc.nvim (with Volar for Vue), Fugitive, GitGutter, Airline, minimap.vim, and Glow.
 
 The leader key is Space. The configuration treats a Vim tab as a workspace containing a NERDTree panel and a file window. FZF launched from NERDTree is deliberately routed to the file window.
 
@@ -31,7 +31,7 @@ Inside Vim, useful checks are:
 :echo has('timers')
 ```
 
-A powerline-compatible Nerd Font is recommended for Airline and vim-devicons.
+A powerline-compatible Nerd Font is recommended for Airline and vim-devicons; most also cover the Braille glyphs minimap.vim renders with.
 
 ## Installation
 
@@ -60,6 +60,22 @@ git switch --track origin/release
 ```
 
 This only needs to be done once: `:PluginUpdate` runs `git pull` on whichever branch is currently checked out, and the tracking set up above means that stays `release`.
+
+### Minimap renderer
+
+minimap.vim displays a scaled overview of the buffer but does not render it itself — it shells out to the external `code-minimap` binary. Install a Rust toolchain if you don't already have one:
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+Then build the renderer:
+
+```bash
+cargo install --locked code-minimap
+```
+
+Vundle has no post-install hook (unlike vim-plug's `do` option), so this step has to be run manually and repeated after any `code-minimap` update.
 
 ### Coc.nvim extensions
 
@@ -138,6 +154,14 @@ The custom quit behavior is intentional:
 While an FZF picker has a preview pane, use `Shift-Up` and `Shift-Down` to scroll the preview without leaving the picker. NERDTree is hidden while mapped FZF pickers are open and restored after the picker closes.
 
 The file source includes hidden files but excludes common build, metadata, cache, Git, and `node_modules` directories. Errors are written to `~/.vim/fzf-error.log`.
+
+### Minimap
+
+| Key | Action |
+| --- | --- |
+| `Space m m` | Toggle the minimap |
+
+The minimap opens automatically for every buffer (`g:minimap_auto_start = 1`); use `Space m m` to hide it per-buffer when it's not wanted. `:MinimapRefresh` and `:MinimapRescan` are available directly if the rendering falls out of sync after a large edit.
 
 ### Buffers and windows
 
@@ -339,6 +363,7 @@ Plugins, undo files, FZF history, language servers, and generated logs remain ou
 - Persistent undo is stored in a private directory.
 - Volar is installed without sudo.
 - npm Git dependency permission is scoped to individual commands.
+- code-minimap is installed via `cargo install` under the user's account, without sudo.
 - Logs, histories, sessions, and environment files are ignored.
 
 ## License
