@@ -10,7 +10,10 @@ call vundle#begin('~/.vim/bundle/')
 Plugin 'VundleVim/Vundle.vim'
 Plugin 'preservim/nerdtree'
 Plugin 'morhetz/gruvbox'
-Plugin 'Valloric/YouCompleteMe'
+" Vundle has no 'branch' option (unlike vim-plug) and clones shallowly,
+" so after :PluginInstall this sits on unbuilt TypeScript source. Fetch
+" and switch to the prebuilt 'release' branch manually — see README.
+Plugin 'neoclide/coc.nvim'
 Plugin 'vim-airline/vim-airline'
 Plugin 'vim-airline/vim-airline-themes'
 Plugin 'tpope/vim-fugitive'
@@ -23,34 +26,40 @@ Plugin 'junegunn/fzf.vim'
 call vundle#end()
 
 """"""""""""""""""""""""""""
-" Vue Language Server    "
+" Coc.nvim Language Servers"
 """"""""""""""""""""""""""""
-let g:ycm_language_server = [
-      \ {
-      \   'name': 'vue',
-      \   'cmdline': [
-      \     expand('~/.local/share/vue-language-server/node_modules/.bin/vue-language-server'),
-      \     '--stdio'
-      \   ],
-      \   'filetypes': ['vue'],
-      \   'settings': {
-      \     'typescript': {
-      \       'tsdk': expand('~/.local/share/vue-language-server/node_modules/typescript/lib')
+" JavaScript/TypeScript, Python, and C/C++ come from coc extensions.
+" Listing them here makes coc auto-install any that are missing on
+" startup, so normally no manual :CocInstall is needed. Vue is wired up
+" manually below because it needs the isolated TypeScript SDK and hybrid
+" mode disabled.
+let g:coc_global_extensions = ['coc-tsserver', 'coc-pyright', 'coc-clangd']
+
+let g:coc_user_config = {
+      \ 'languageserver': {
+      \   'vue': {
+      \     'command': expand('~/.local/share/vue-language-server/node_modules/.bin/vue-language-server'),
+      \     'args': ['--stdio'],
+      \     'filetypes': ['vue'],
+      \     'initializationOptions': {
+      \       'typescript': {
+      \         'tsdk': expand('~/.local/share/vue-language-server/node_modules/typescript/lib')
+      \       },
+      \       'vue': {
+      \         'hybridMode': v:false
+      \       }
       \     },
-      \     'vue': {
-      \       'hybridMode': v:false
-      \     }
-      \   },
-      \   'project_root_files': [
-      \     'package.json',
-      \     'vite.config.js',
-      \     'vite.config.ts',
-      \     'vue.config.js',
-      \     'tsconfig.json',
-      \     'jsconfig.json'
-      \   ]
+      \     'rootPatterns': [
+      \       'package.json',
+      \       'vite.config.js',
+      \       'vite.config.ts',
+      \       'vue.config.js',
+      \       'tsconfig.json',
+      \       'jsconfig.json'
+      \     ]
+      \   }
       \ }
-      \ ]
+      \ }
 
 """"""""""""""""""""""""""""
 " General Config           "
@@ -58,8 +67,13 @@ let g:ycm_language_server = [
 let mapleader = ' '
 let maplocalleader = ' '
 
-" Start at the host repositories directory when it exists.
-let s:cwd_dir = expand('~')
+" Start at $VIMRC_DEFAULT_CWD when set and valid, otherwise the home
+" directory. This keeps the same vimrc usable across machines,
+" containers, and sandboxes with different layouts.
+let s:cwd_dir = empty($VIMRC_DEFAULT_CWD) ? expand('~') : expand($VIMRC_DEFAULT_CWD)
+if !isdirectory(s:cwd_dir)
+  let s:cwd_dir = expand('~')
+endif
 if isdirectory(s:cwd_dir)
   execute 'cd ' . fnameescape(s:cwd_dir)
 endif
@@ -100,9 +114,11 @@ augroup search_highlight_lifecycle
   autocmd InsertLeave * silent! nohlsearch
 augroup END
 
-" Show completion documentation in a preview split.
-set completeopt-=popup
-set completeopt+=preview
+" Coc.nvim recommends a plain popup menu with no automatic insertion;
+" it shows documentation in its own floating window instead of a preview
+" split.
+set completeopt=menuone,noinsert,noselect
+set shortmess+=c
 
 " Update GitGutter signs promptly.
 set updatetime=100
@@ -124,27 +140,41 @@ endif
 set background=dark
 colorscheme desert
 
-augroup completion_preview
-  autocmd!
-  autocmd InsertLeave * silent! pclose
-augroup END
+""""""""""""""""""""""""""""
+" Coc.nvim Completion      "
+""""""""""""""""""""""""""""
+function! s:CheckBackspace() abort
+  let l:col = col('.') - 1
+  return !l:col || getline('.')[l:col - 1] =~# '\s'
+endfunction
+
+inoremap <silent><expr> <TAB>
+      \ coc#pum#visible() ? coc#pum#next(1) :
+      \ <SID>CheckBackspace() ? "\<Tab>" :
+      \ coc#refresh()
+inoremap <expr> <S-TAB> coc#pum#visible() ? coc#pum#prev(1) : "\<C-h>"
+inoremap <silent><expr> <CR> coc#pum#visible() ? coc#pum#confirm() : "\<C-g>u\<CR>"
 
 """"""""""""""""""""""""""""
-" YCM and Diagnostics      "
+" Coc.nvim Navigation, Refactoring, and Diagnostics
 """"""""""""""""""""""""""""
-let g:ycm_always_populate_location_list = 1
+nnoremap <silent> <leader>jd <Plug>(coc-definition)
+nnoremap <silent> <leader>jr <Plug>(coc-references)
+nnoremap <silent> <leader>jt <Plug>(coc-type-definition)
+nnoremap <silent> <leader>jh :call CocActionAsync('doHover')<CR>
+nnoremap <leader>jn <Plug>(coc-rename)
+nnoremap <silent> <leader>jf <Plug>(coc-fix-current)
 
-nnoremap <silent> <leader>jd :YcmCompleter GoToDefinition<CR>
-nnoremap <silent> <leader>jr :YcmCompleter GoToReferences<CR>
-nnoremap <silent> <leader>jt :YcmCompleter GoToType<CR>
-nnoremap <silent> <leader>jh :YcmCompleter GetDoc<CR>
-nnoremap <leader>jn :YcmCompleter RefactorRename<Space>
-nnoremap <silent> <leader>jf :YcmCompleter FixIt<CR>
+" Show refactor actions (extract to function/constant, etc.) available
+" for the current position or visual selection, when the attached
+" language server offers any.
+nmap <silent> <leader>ja <Plug>(coc-codeaction-cursor)
+xmap <silent> <leader>ja <Plug>(coc-codeaction-selected)
 
-nnoremap <silent> <leader>do :lopen<CR>
+nnoremap <silent> <leader>do :CocDiagnostics<CR>
 nnoremap <silent> <leader>dc :lclose<CR>
-nnoremap <silent> ]d :lnext<CR>
-nnoremap <silent> [d :lprevious<CR>
+nnoremap <silent> ]d <Plug>(coc-diagnostic-next)
+nnoremap <silent> [d <Plug>(coc-diagnostic-prev)
 
 """"""""""""""""""""""""""""
 " NERDTree                 "
