@@ -151,7 +151,7 @@ inoremap <expr> <S-TAB> coc#pum#visible() ? coc#pum#prev(1) : "\<C-h>"
 inoremap <silent><expr> <CR> coc#pum#visible() ? coc#pum#confirm() : "\<C-g>u\<CR>"
 
 """"""""""""""""""""""""""""
-" Coc.nvim Diagnostics     "
+" Coc.nvim Navigation, Refactoring, and Diagnostics
 """"""""""""""""""""""""""""
 nnoremap <silent> <leader>jd <Plug>(coc-definition)
 nnoremap <silent> <leader>jr <Plug>(coc-references)
@@ -159,6 +159,12 @@ nnoremap <silent> <leader>jt <Plug>(coc-type-definition)
 nnoremap <silent> <leader>jh :call CocActionAsync('doHover')<CR>
 nnoremap <leader>jn <Plug>(coc-rename)
 nnoremap <silent> <leader>jf <Plug>(coc-fix-current)
+
+" Show refactor actions (extract to function/constant, etc.) available
+" for the current position or visual selection, when the attached
+" language server offers any.
+nmap <silent> <leader>ja <Plug>(coc-codeaction-cursor)
+xmap <silent> <leader>ja <Plug>(coc-codeaction-selected)
 
 nnoremap <silent> <leader>do :CocDiagnostics<CR>
 nnoremap <silent> <leader>dc :lclose<CR>

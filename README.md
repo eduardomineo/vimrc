@@ -161,8 +161,11 @@ New horizontal splits open below; vertical splits open to the right.
 | `Space j h` | Show documentation |
 | `Space j n` | Rename symbol; enter the new name |
 | `Space j f` | Apply a suggested fix |
+| `Space j a` | Show refactor actions (normal mode: current position; visual mode: selection) |
 
 `Space j d` jumps to where the symbol itself is defined, such as a variable declaration or function implementation. `Space j t` jumps to where the symbol's type is defined, such as a class, interface, or type alias. For `const user: User`, definition goes to `user`; type goes to `User`.
+
+`Space j a` lists whatever refactor actions the attached language server offers for the position or selection — things like "Extract to function" or "Extract to constant." Support varies by server: tsserver (JS/TS, and Vue's `<script>` blocks via Volar) has solid extract-refactor support; clangd (C/C++) added similar tweaks in recent versions; Pyright (Python) does not implement refactor code actions at all.
 
 Coc records navigation in Vim's jump list. Use `Ctrl-O` to go backward and `Ctrl-I` to go forward.
 
