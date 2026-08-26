@@ -1,6 +1,6 @@
 # Vim development environment
 
-A practical Ubuntu-oriented Vim setup built around NERDTree, FZF, ripgrep, YouCompleteMe (YCM), Volar, Fugitive, GitGutter, Airline, and Glow.
+A practical Ubuntu-oriented Vim setup built around NERDTree, FZF, ripgrep, coc.nvim (with Volar for Vue), Fugitive, GitGutter, Airline, and Glow.
 
 The leader key is Space. The configuration treats a Vim tab as a workspace containing a NERDTree panel and a file window. FZF launched from NERDTree is deliberately routed to the file window.
 
@@ -10,12 +10,12 @@ Install the basic tools:
 
 ```bash
 sudo apt update
-sudo apt install build-essential cmake git npm ripgrep vim-nox
+sudo apt install git npm ripgrep vim-nox
 ```
 
 Install [Glow](https://github.com/charmbracelet/glow) using its Ubuntu installation instructions if it is not available from your configured repositories.
 
-Use a Vim build with Python 3, terminal, popup-window, and timer support:
+Use a Vim build with job/channel, terminal, popup-window, and timer support. Coc.nvim needs the first two; the rest serve Glow, GitGutter, and FZF's preview scrolling:
 
 ```bash
 vim --version
@@ -24,7 +24,8 @@ vim --version
 Inside Vim, useful checks are:
 
 ```vim
-:echo has('python3')
+:echo has('job')
+:echo has('channel')
 :echo has('terminal')
 :echo has('popupwin')
 :echo has('timers')
@@ -49,26 +50,19 @@ git clone https://github.com/VundleVim/Vundle.vim.git ~/.vim/bundle/Vundle.vim
 vim +PluginInstall +qall
 ```
 
-### Build YouCompleteMe
+### Coc.nvim extensions
 
-For JavaScript and TypeScript support:
+`vimrc` declares the required extensions in `g:coc_global_extensions` (`coc-tsserver`, `coc-pyright`, `coc-clangd`), so coc installs anything missing the first time Vim starts after `:PluginInstall`. This needs network access; once installed, extensions are cached under `~/.config/coc/extensions` and startup no longer touches the network.
 
-```bash
-cd ~/.vim/bundle/YouCompleteMe
-python3 install.py --ts-completer
+To install or reinstall manually:
+
+```vim
+:CocInstall coc-tsserver coc-pyright coc-clangd
 ```
-
-For every completer whose toolchain is installed:
-
-```bash
-python3 install.py --all
-```
-
-After a substantial YCM update, rerun its installer because its compiled component may need rebuilding.
 
 ## Vue completion with Volar
 
-YCM handles JavaScript and TypeScript natively, but Vue single-file components require Volar. This configuration expects it under `~/.local/share/vue-language-server`.
+coc-tsserver handles JavaScript and TypeScript natively, but Vue single-file components require Volar. This configuration expects it under `~/.local/share/vue-language-server`.
 
 Install a compatible Volar 2.x release and TypeScript 5:
 
@@ -85,16 +79,17 @@ Verify it:
 ~/.local/share/vue-language-server/node_modules/.bin/vue-language-server --version
 ```
 
-Version 2.2.12 is known to work. The vimrc supplies the isolated TypeScript SDK and disables Volar hybrid mode, which is required for a generic LSP client such as YCM.
+Version 2.2.12 is known to work. The vimrc supplies the isolated TypeScript SDK and disables Volar hybrid mode, which is required for a generic LSP client such as coc.nvim.
 
 Restart Vim, open a Vue file, and check:
 
 ```vim
 :set filetype?
-:YcmDebugInfo
+:CocInfo
+:CocList services
 ```
 
-The result should include `filetype=vue`, `vueCompleter running`, and an initialized server state. Do not force Vue files to the `html` filetype.
+`:set filetype?` should report `filetype=vue`. `:CocList services` should list the `vue` language server as running. Do not force Vue files to the `html` filetype.
 
 ## Workflow
 
@@ -145,7 +140,7 @@ The file source includes hidden files but excludes common build, metadata, cache
 
 New horizontal splits open below; vertical splits open to the right.
 
-### YCM navigation and refactoring
+### Coc.nvim navigation and refactoring
 
 | Key | Action |
 | --- | --- |
@@ -158,13 +153,15 @@ New horizontal splits open below; vertical splits open to the right.
 
 `Space j d` jumps to where the symbol itself is defined, such as a variable declaration or function implementation. `Space j t` jumps to where the symbol's type is defined, such as a class, interface, or type alias. For `const user: User`, definition goes to `user`; type goes to `User`.
 
-YCM records navigation in Vim's jump list. Use `Ctrl-O` to go backward and `Ctrl-I` to go forward.
+Coc records navigation in Vim's jump list. Use `Ctrl-O` to go backward and `Ctrl-I` to go forward.
 
-Completion documentation appears in a preview split. Press Escape to leave insert mode and close the documentation split.
+Hover documentation (`Space j h`) opens in a floating window rather than a preview split.
+
+While the completion popup menu is open, `Tab`/`Shift-Tab` cycle candidates and `Enter` confirms the selected one. Outside the menu these keys behave normally.
 
 ### Diagnostics
 
-YCM always populates Vim's location list.
+`Space d o` runs `:CocDiagnostics`, which fills Vim's native location list with coc's diagnostics for the current buffer, same as before.
 
 | Key | Action |
 | --- | --- |
@@ -173,11 +170,13 @@ YCM always populates Vim's location list.
 | `] d` | Next diagnostic |
 | `[ d` | Previous diagnostic |
 
+`] d` and `[ d` jump directly to the next/previous diagnostic via coc, independent of whether the location list is open.
+
 ### Search and display
 
 Search is incremental and case-insensitive unless the query contains uppercase characters. `*`, `#`, `g*`, and `g#` highlight their matches. Arrow keys, `Esc`, `Space h`, and entering insert mode clear the highlight.
 
-The sign column is always visible so YCM and GitGutter signs do not shift the text. The editor keeps five context lines around the cursor and enables persistent undo.
+The sign column is always visible so coc and GitGutter signs do not shift the text. The editor keeps five context lines around the cursor and enables persistent undo.
 
 ### Git
 
@@ -230,11 +229,10 @@ Update plugins:
 :PluginUpdate
 ```
 
-Rebuild YCM afterward if it reports an incompatible compiled component:
+Update coc extensions too:
 
-```bash
-cd ~/.vim/bundle/YouCompleteMe
-python3 install.py --ts-completer
+```vim
+:CocUpdateSync
 ```
 
 Update Volar only within the compatible major version:
@@ -243,18 +241,19 @@ Update Volar only within the compatible major version:
 npm update --allow-git=all --prefix ~/.local/share/vue-language-server
 ```
 
-Do not blindly upgrade to Volar 3.x: its TypeScript request-forwarding architecture may not work with YCM's generic LSP client.
+Do not blindly upgrade to Volar 3.x: its TypeScript request-forwarding architecture may not work with coc.nvim's generic LSP client.
 
 ## Troubleshooting
 
-### YCM and Volar
+### Coc.nvim and Volar
 
 ```vim
-:YcmDebugInfo
-:YcmToggleLogs
+:CocInfo
+:CocOpenLog
+:CocList services
 ```
 
-If the Vue server is dead, inspect the listed `vueCompleter` and ycmd stderr logs. Check the editor environment:
+If the Vue server is dead, `:CocList services` shows its status and `:CocOpenLog` opens coc's log for its stderr output. Check the editor environment:
 
 ```vim
 :echo executable('node')
@@ -292,17 +291,6 @@ Autocommands are placed in named groups and cleared before recreation, so the fi
 ```
 
 Plugin and language-server changes are best tested after fully restarting Vim.
-
-### Duplicate YCM directories
-
-On case-sensitive filesystems, these are different:
-
-```text
-~/.vim/bundle/YouCompleteMe
-~/.vim/bundle/youcompleteme
-```
-
-This configuration loads `YouCompleteMe`. Confirm with `:scriptnames`, back up anything important, and archive or remove only the unused duplicate.
 
 ### Minimal startup
 
