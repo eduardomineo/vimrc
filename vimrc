@@ -179,6 +179,50 @@ nnoremap <silent> <leader>dc :lclose<CR>
 nnoremap <silent> ]d <Plug>(coc-diagnostic-next)
 nnoremap <silent> [d <Plug>(coc-diagnostic-prev)
 
+function! s:DiagnosticsWindowOpen() abort
+  for l:winnr in range(1, winnr('$'))
+    if get(getwininfo(win_getid(l:winnr))[0], 'loclist', 0)
+      return 1
+    endif
+  endfor
+  return 0
+endfunction
+
+function! s:FillDiagnosticsDeferred(bufnr, timer) abort
+  " Deferred via timer_start(0, ...): BufEnter fires synchronously as
+  " part of :e, but coc's own attach handshake with its Node backend for
+  " a newly-entered buffer is asynchronous, so calling fillDiagnostics
+  " directly here can race it ("Buffer N not exists"). Running on the
+  " next event-loop tick lets that attach finish first.
+  "
+  " Guarded against a second, newer BufEnter having already superseded
+  " this one by the time the timer fires (e.g. a fast double buffer
+  " switch): only apply if the current buffer still matches what was
+  " captured at schedule time, so a stale callback can't clobber a
+  " later, correct update — last real switch always wins.
+  if bufnr('%') != a:bufnr || !s:DiagnosticsWindowOpen()
+    return
+  endif
+  silent! call coc#rpc#request('fillDiagnostics', [a:bufnr])
+  " fillDiagnostics alone updates the underlying location-list data but
+  " does not redraw an already-open location-list window to show it —
+  " that needs an explicit :lopen nudge. win_execute() runs :lopen
+  " scoped to this window: it refreshes the existing window in place,
+  " without moving focus or opening a duplicate.
+  silent! call win_execute(win_getid(), 'lopen')
+endfunction
+
+" Keep the diagnostics list in sync with whichever file is current:
+" refresh its contents (not focus) on every real BufEnter, but only when
+" the window is already open somewhere in this tab — this never forces it
+" open, and never fires while browsing an auxiliary window (NERDTree,
+" minimap, the diagnostics window itself), which would blank the list.
+augroup coc_diagnostics_autoupdate
+  autocmd!
+  autocmd BufEnter * if !s:IsAuxiliaryWindow(winnr()) && s:DiagnosticsWindowOpen() |
+        \ call timer_start(0, function('s:FillDiagnosticsDeferred', [bufnr('%')])) | endif
+augroup END
+
 """"""""""""""""""""""""""""
 " NERDTree                 "
 """"""""""""""""""""""""""""
@@ -456,8 +500,11 @@ augroup END
 """"""""""""""""""""""""""""
 " Navigation and Editing   "
 """"""""""""""""""""""""""""
-nnoremap <silent> <C-Right> :bnext!<CR>
-nnoremap <silent> <C-Left> :bprevious!<CR>
+" Routed through the file window so cycling buffers from an auxiliary
+" window (minimap, diagnostics) doesn't load the next/previous buffer
+" into that panel — NERDTree already has its own <nop> override above.
+nnoremap <silent> <C-Right> :call <SID>RunInFileWindow('bnext!')<CR>
+nnoremap <silent> <C-Left> :call <SID>RunInFileWindow('bprevious!')<CR>
 nnoremap <silent> <Up> <Up>:nohlsearch<CR>
 nnoremap <silent> <Down> <Down>:nohlsearch<CR>
 nnoremap <silent> <Left> <Left>:nohlsearch<CR>

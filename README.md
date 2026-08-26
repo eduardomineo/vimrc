@@ -175,6 +175,8 @@ The minimap opens automatically for every buffer (`g:minimap_auto_start = 1`); u
 
 New horizontal splits open below; vertical splits open to the right.
 
+`Ctrl-Right`/`Ctrl-Left` are routed to the file window the same way FZF pickers are: triggering them from NERDTree, the minimap, or the diagnostics window switches the buffer shown in the file window rather than whichever panel had focus.
+
 `Alt-w` is a local function, not a plugin (see `reviews/bclose-swallows-diagnostics-window.md` for why the previous `Bclose`-based mapping was replaced). It switches to the alternate or another listed buffer if one exists, otherwise opens a blank one, then deletes the old buffer — it never falls back to NERDTree, minimap, or a quickfix/location-list buffer. Run `vim +PluginClean +qall` to remove the now-unused `bclose.vim` plugin directory.
 
 ### Coc.nvim navigation and refactoring
@@ -211,6 +213,8 @@ While the completion popup menu is open, `Tab`/`Shift-Tab` cycle candidates and 
 | `[ d` | Previous diagnostic |
 
 `] d` and `[ d` jump directly to the next/previous diagnostic via coc, independent of whether the location list is open.
+
+Once the diagnostics window is open, it stays in sync automatically: switching to a different file refreshes the list to that file's problems, without moving focus or reopening the window. It never fires while browsing NERDTree, the minimap, or the diagnostics window itself, so it can't blank the list just from glancing at a panel.
 
 ### Search and display
 
