@@ -17,7 +17,6 @@ Plugin 'neoclide/coc.nvim'
 Plugin 'vim-airline/vim-airline'
 Plugin 'vim-airline/vim-airline-themes'
 Plugin 'tpope/vim-fugitive'
-Plugin 'chrismccord/bclose.vim'
 Plugin 'ryanoasis/vim-devicons'
 Plugin 'airblade/vim-gitgutter.git'
 Plugin 'junegunn/fzf'
@@ -180,6 +179,50 @@ nnoremap <silent> <leader>dc :lclose<CR>
 nnoremap <silent> ]d <Plug>(coc-diagnostic-next)
 nnoremap <silent> [d <Plug>(coc-diagnostic-prev)
 
+function! s:DiagnosticsWindowOpen() abort
+  for l:winnr in range(1, winnr('$'))
+    if get(getwininfo(win_getid(l:winnr))[0], 'loclist', 0)
+      return 1
+    endif
+  endfor
+  return 0
+endfunction
+
+function! s:FillDiagnosticsDeferred(bufnr, timer) abort
+  " Deferred via timer_start(0, ...): BufEnter fires synchronously as
+  " part of :e, but coc's own attach handshake with its Node backend for
+  " a newly-entered buffer is asynchronous, so calling fillDiagnostics
+  " directly here can race it ("Buffer N not exists"). Running on the
+  " next event-loop tick lets that attach finish first.
+  "
+  " Guarded against a second, newer BufEnter having already superseded
+  " this one by the time the timer fires (e.g. a fast double buffer
+  " switch): only apply if the current buffer still matches what was
+  " captured at schedule time, so a stale callback can't clobber a
+  " later, correct update — last real switch always wins.
+  if bufnr('%') != a:bufnr || !s:DiagnosticsWindowOpen()
+    return
+  endif
+  silent! call coc#rpc#request('fillDiagnostics', [a:bufnr])
+  " fillDiagnostics alone updates the underlying location-list data but
+  " does not redraw an already-open location-list window to show it —
+  " that needs an explicit :lopen nudge. win_execute() runs :lopen
+  " scoped to this window: it refreshes the existing window in place,
+  " without moving focus or opening a duplicate.
+  silent! call win_execute(win_getid(), 'lopen')
+endfunction
+
+" Keep the diagnostics list in sync with whichever file is current:
+" refresh its contents (not focus) on every real BufEnter, but only when
+" the window is already open somewhere in this tab — this never forces it
+" open, and never fires while browsing an auxiliary window (NERDTree,
+" minimap, the diagnostics window itself), which would blank the list.
+augroup coc_diagnostics_autoupdate
+  autocmd!
+  autocmd BufEnter * if !s:IsAuxiliaryWindow(winnr()) && s:DiagnosticsWindowOpen() |
+        \ call timer_start(0, function('s:FillDiagnosticsDeferred', [bufnr('%')])) | endif
+augroup END
+
 """"""""""""""""""""""""""""
 " NERDTree                 "
 """"""""""""""""""""""""""""
@@ -188,11 +231,20 @@ augroup nerdtree_lifecycle
   " Start NERDTree and move cursor to the file window.
   autocmd VimEnter * if argc() == 0 && !exists('s:std_in') && v:this_session == '' | NERDTree | wincmd p | endif
 
-  " Close the tab/Vim when only NERDTree remains.
-  autocmd BufEnter * if winnr('$') == 1 && exists('b:NERDTree') && b:NERDTree.isTabTree() | call feedkeys(":quit\<CR>:\<BS>") | endif
+  " Close the tab/Vim when only auxiliary windows (NERDTree, minimap,
+  " quickfix/loclist) remain. Closes them directly via :close/:quit rather
+  " than feedkeys()-ing ":quit<CR>": that string goes through the very
+  " same <CR> cnoremap as real typed input (both ours and NERDTree's own
+  " buffer-local one, which deliberately dodges closing the NERDTree
+  " window itself), making the old approach dependent on exactly which
+  " window ends up focused. This closes everything auxiliary in one go.
+  autocmd BufEnter * call s:QuitIfOnlyAuxiliaryWindowsRemain()
 
-  " Keep file buffers from replacing the NERDTree window.
-  autocmd BufEnter * if winnr() == winnr('h') && bufname('#') =~ 'NERD_tree_\d\+' && bufname('%') !~ 'NERD_tree_\d\+' && winnr('$') > 1 |
+  " Keep file buffers from replacing the NERDTree window. Guarded against
+  " quickfix/location-list windows: those span the full width, so
+  " winnr('h') returns their own window number and would otherwise make
+  " this misfire as if it were the leftmost (NERDTree) window.
+  autocmd BufEnter * if &buftype !=# 'quickfix' && winnr() == winnr('h') && bufname('#') =~ 'NERD_tree_\d\+' && bufname('%') !~ 'NERD_tree_\d\+' && winnr('$') > 1 |
         \ let buf=bufnr() | buffer# | execute "normal! \<C-W>w" | execute 'buffer'.buf | endif
 
   " Mirror NERDTree into normal tabs, excluding temporary Glow tabs.
@@ -222,6 +274,84 @@ function! s:BufferHasNERDTree(bufnr) abort
   return !empty(getbufvar(a:bufnr, 'NERDTree', {}))
 endfunction
 
+" True for a sidebar/panel window (NERDTree, the minimap, a quickfix or
+" location list) as opposed to a window showing real file content. Shared
+" by every "route this command to a real window" and "quit when nothing
+" real is left" check below, so a new panel type only needs updating here.
+function! s:IsAuxiliaryWindow(winnr) abort
+  let l:buf = winbufnr(a:winnr)
+  if s:BufferHasNERDTree(l:buf) || getbufvar(l:buf, '&filetype') ==# 'minimap'
+    return 1
+  endif
+  let l:info = getwininfo(win_getid(a:winnr))[0]
+  return get(l:info, 'loclist', 0) || get(l:info, 'quickfix', 0)
+endfunction
+
+" True when every remaining window is auxiliary rather than real file
+" content. Used to decide whether closing the last file window should
+" quit Vim, so auxiliary windows added later don't silently defeat that
+" check the way a raw winnr('$') count would.
+function! s:OnlyAuxiliaryWindowsRemain() abort
+  for l:winnr in range(1, winnr('$'))
+    if !s:IsAuxiliaryWindow(l:winnr)
+      return 0
+    endif
+  endfor
+  return 1
+endfunction
+
+" Every window already qualified as auxiliary above, so there is nothing
+" worth preserving: close them all and quit the tab (or Vim, if this is
+" the last tab). Deferred via timer_start(0, ...) because Vim disallows
+" changing the window layout from directly inside a BufEnter handler
+" (E1312) — the timer callback runs on the next event-loop tick, once
+" autocmd processing has fully unwound.
+function! s:QuitIfOnlyAuxiliaryWindowsRemain() abort
+  if !s:OnlyAuxiliaryWindowsRemain()
+    return
+  endif
+  call timer_start(0, function('s:CloseAllAuxiliaryWindows'))
+endfunction
+
+function! s:CloseAllAuxiliaryWindows(timer) abort
+  if !s:OnlyAuxiliaryWindowsRemain()
+    return
+  endif
+  while winnr('$') > 1
+    close
+  endwhile
+  quit
+endfunction
+
+" Close the current buffer, keeping the window open on something else.
+" Replaces the third-party Bclose plugin, whose "no other listed buffer
+" -> grab any buffer with an empty name" fallback incorrectly matched
+" coc's diagnostics buffer (quickfix/location-list buffers have
+" bufname() == '' despite :ls showing a bracketed placeholder for them) —
+" see reviews/bclose-swallows-diagnostics-window.md. This never searches
+" for a fallback beyond other genuinely listed buffers, so it can't repeat
+" that mistake.
+function! s:CloseBuffer() abort
+  let l:target = bufnr('%')
+  if s:BufferHasNERDTree(l:target) || &buftype ==# 'quickfix' || &filetype ==# 'minimap'
+    return
+  endif
+
+  let l:alt = bufnr('#')
+  if l:alt > 0 && l:alt != l:target && buflisted(l:alt)
+    execute 'buffer' l:alt
+  else
+    let l:others = filter(range(1, bufnr('$')), 'buflisted(v:val) && v:val != l:target')
+    if !empty(l:others)
+      execute 'buffer' l:others[0]
+    else
+      enew
+    endif
+  endif
+
+  execute 'bdelete' l:target
+endfunction
+
 function! s:NERDTreeVisible() abort
   for l:winnr in range(1, winnr('$'))
     if s:BufferHasNERDTree(winbufnr(l:winnr))
@@ -232,19 +362,34 @@ function! s:NERDTreeVisible() abort
   return 0
 endfunction
 
+" The tree's own root path, so it can be reopened at exactly the same
+" place later — not wherever getcwd() happens to be by then. Ambient cwd
+" isn't guaranteed stable across an FZF picker session (a Files/Rg dir
+" argument, or anything else that does a :cd/:lcd), and NERDTree's own
+" bare :NERDTree command falls back to getcwd() when given no path.
+function! s:NERDTreeRootPath() abort
+  for l:winnr in range(1, winnr('$'))
+    let l:buf = winbufnr(l:winnr)
+    if s:BufferHasNERDTree(l:buf)
+      return getbufvar(l:buf, 'NERDTree').root.path.str()
+    endif
+  endfor
+  return ''
+endfunction
+
 function! s:FocusFileWindow() abort
-  if !s:BufferHasNERDTree(bufnr('%'))
+  if !s:IsAuxiliaryWindow(winnr())
     return 1
   endif
 
   for l:winnr in range(1, winnr('$'))
-    if !s:BufferHasNERDTree(winbufnr(l:winnr))
+    if !s:IsAuxiliaryWindow(l:winnr)
       execute l:winnr . 'wincmd w'
       return 1
     endif
   endfor
 
-  echoerr 'No non-NERDTree window available'
+  echoerr 'No file window available'
   return 0
 endfunction
 
@@ -252,6 +397,7 @@ function! s:HideNERDTreeForFzf() abort
   if s:NERDTreeVisible()
     let t:restore_nerdtree_after_fzf = 1
     let t:fzf_return_winid = win_getid()
+    let t:nerdtree_restore_root = s:NERDTreeRootPath()
     silent! NERDTreeClose
   endif
 endfunction
@@ -264,8 +410,14 @@ function! s:RestoreNERDTreeAfterFzf(...) abort
   unlet t:restore_nerdtree_after_fzf
   let l:return_winid = get(t:, 'fzf_return_winid', 0)
   unlet! t:fzf_return_winid
+  let l:root = get(t:, 'nerdtree_restore_root', '')
+  unlet! t:nerdtree_restore_root
 
-  silent! NERDTree
+  if !empty(l:root) && isdirectory(l:root)
+    execute 'NERDTree' fnameescape(l:root)
+  else
+    silent! NERDTree
+  endif
 
   if l:return_winid > 0 && win_id2win(l:return_winid) > 0
     call win_gotoid(l:return_winid)
@@ -370,8 +522,11 @@ augroup END
 """"""""""""""""""""""""""""
 " Navigation and Editing   "
 """"""""""""""""""""""""""""
-nnoremap <silent> <C-Right> :bnext!<CR>
-nnoremap <silent> <C-Left> :bprevious!<CR>
+" Routed through the file window so cycling buffers from an auxiliary
+" window (minimap, diagnostics) doesn't load the next/previous buffer
+" into that panel — NERDTree already has its own <nop> override above.
+nnoremap <silent> <C-Right> :call <SID>RunInFileWindow('bnext!')<CR>
+nnoremap <silent> <C-Left> :call <SID>RunInFileWindow('bprevious!')<CR>
 nnoremap <silent> <Up> <Up>:nohlsearch<CR>
 nnoremap <silent> <Down> <Down>:nohlsearch<CR>
 nnoremap <silent> <Left> <Left>:nohlsearch<CR>
@@ -388,7 +543,7 @@ nnoremap + <C-W>+
 
 " Most terminals encode Alt-key combinations as an Escape prefix.
 " These mappings therefore implement Alt-w, Alt-y, and Alt-f reliably.
-nnoremap <silent> <Esc>w :Bclose<CR>
+nnoremap <silent> <Esc>w :call <SID>CloseBuffer()<CR>
 nnoremap <silent> <Esc>y :NERDTreeFind<CR>
 nnoremap <silent> <Esc>f :NERDTreeToggle<CR>
 " Keep *, #, g*, g#, n, and N native so search highlighting persists.
