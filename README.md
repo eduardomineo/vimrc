@@ -171,9 +171,11 @@ The minimap opens automatically for every buffer (`g:minimap_auto_start = 1`); u
 | `Alt-Shift-Left/Right` | Focus left/right window |
 | `Alt-<` / `Alt->` | Narrow/widen window |
 | `-` / `+` | Shorten/tall window |
-| `Alt-w` | Close buffer with Bclose |
+| `Alt-w` | Close the current buffer, keeping the window |
 
 New horizontal splits open below; vertical splits open to the right.
+
+`Alt-w` is a local function, not a plugin (see `reviews/bclose-swallows-diagnostics-window.md` for why the previous `Bclose`-based mapping was replaced). It switches to the alternate or another listed buffer if one exists, otherwise opens a blank one, then deletes the old buffer — it never falls back to NERDTree, minimap, or a quickfix/location-list buffer. Run `vim +PluginClean +qall` to remove the now-unused `bclose.vim` plugin directory.
 
 ### Coc.nvim navigation and refactoring
 
