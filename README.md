@@ -31,7 +31,26 @@ Inside Vim, useful checks are:
 :echo has('timers')
 ```
 
-A powerline-compatible Nerd Font is recommended for Airline and vim-devicons; most also cover the Braille glyphs minimap.vim renders with.
+A powerline-compatible Nerd Font is recommended for Airline and vim-devicons; most also cover the Braille glyphs minimap.vim renders with. Without one, Airline's statusline separators and vim-devicons' file icons render as boxes or question marks.
+
+Install one (any Nerd Font works; Hack is used here as an example):
+
+```bash
+mkdir -p ~/.local/share/fonts
+cd ~/.local/share/fonts
+wget https://github.com/ryanoasis/nerd-fonts/releases/latest/download/Hack.zip
+unzip Hack.zip -d Hack
+rm Hack.zip
+fc-cache -fv
+```
+
+This only makes the font available system-wide — it still needs to be selected as the font in your terminal emulator, since that's what actually renders Vim's text. For Terminator:
+
+- Right-click inside the terminal → **Preferences** → **Profiles** tab → select your active profile.
+- Under **General**, uncheck **"Use the system fixed width font"**, then use the font picker button that becomes enabled to choose **"Hack Nerd Font Mono"** (the Mono variant keeps icon glyphs single-cell width, which matters for alignment) and a size.
+- If the font doesn't appear in the picker, restart Terminator first — GTK's font list can be stale until the app restarts after `fc-cache`.
+
+Other terminal emulators have an equivalent font setting in their own preferences.
 
 ## Installation
 
