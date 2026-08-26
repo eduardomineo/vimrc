@@ -10,7 +10,10 @@ call vundle#begin('~/.vim/bundle/')
 Plugin 'VundleVim/Vundle.vim'
 Plugin 'preservim/nerdtree'
 Plugin 'morhetz/gruvbox'
-Plugin 'neoclide/coc.nvim', {'branch': 'release'}
+" Vundle has no 'branch' option (unlike vim-plug) and clones shallowly,
+" so after :PluginInstall this sits on unbuilt TypeScript source. Fetch
+" and switch to the prebuilt 'release' branch manually — see README.
+Plugin 'neoclide/coc.nvim'
 Plugin 'vim-airline/vim-airline'
 Plugin 'vim-airline/vim-airline-themes'
 Plugin 'tpope/vim-fugitive'

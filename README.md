@@ -50,6 +50,17 @@ git clone https://github.com/VundleVim/Vundle.vim.git ~/.vim/bundle/Vundle.vim
 vim +PluginInstall +qall
 ```
 
+Vundle has no equivalent of vim-plug's `branch` option, so it clones coc.nvim's default `master` branch — TypeScript source only, no prebuilt `build/index.js`. Vundle's clone is also shallow (`--depth=1`) and does not fetch other branches, so a plain `git checkout release` can fail with "pathspec did not match." Fetch and track the prebuilt `release` branch explicitly:
+
+```bash
+cd ~/.vim/bundle/coc.nvim
+git config --add remote.origin.fetch '+refs/heads/release:refs/remotes/origin/release'
+git fetch origin
+git switch --track origin/release
+```
+
+This only needs to be done once: `:PluginUpdate` runs `git pull` on whichever branch is currently checked out, and the tracking set up above means that stays `release`.
+
 ### Coc.nvim extensions
 
 `vimrc` declares the required extensions in `g:coc_global_extensions` (`coc-tsserver`, `coc-pyright`, `coc-clangd`), so coc installs anything missing the first time Vim starts after `:PluginInstall`. This needs network access; once installed, extensions are cached under `~/.config/coc/extensions` and startup no longer touches the network.
