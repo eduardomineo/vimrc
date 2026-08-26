@@ -151,7 +151,7 @@ The custom quit behavior is intentional:
 | `Space f h` | `:History` | Search recent files and commands |
 | `Space f c` | `:Commits` | Search Git commits |
 
-While an FZF picker has a preview pane, use `Shift-Up` and `Shift-Down` to scroll the preview without leaving the picker. NERDTree is hidden while mapped FZF pickers are open and restored after the picker closes.
+While an FZF picker has a preview pane, use `Shift-Up` and `Shift-Down` to scroll the preview without leaving the picker. NERDTree is hidden while mapped FZF pickers are open and restored after the picker closes. Triggering a picker from NERDTree, the minimap, or the diagnostics window routes it to the file window instead of opening on top of whichever panel had focus.
 
 The file source includes hidden files but excludes common build, metadata, cache, Git, and `node_modules` directories. Errors are written to `~/.vim/fzf-error.log`.
 

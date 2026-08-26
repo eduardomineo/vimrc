@@ -230,21 +230,28 @@ function! s:BufferHasNERDTree(bufnr) abort
   return !empty(getbufvar(a:bufnr, 'NERDTree', {}))
 endfunction
 
-" True when every remaining window is a sidebar/panel (NERDTree, the
-" minimap, a quickfix/location list) rather than real file content. Used
-" to decide whether closing the last file window should quit Vim, so
-" auxiliary windows added later don't silently defeat that check the way
-" a raw winnr('$') count would.
+" True for a sidebar/panel window (NERDTree, the minimap, a quickfix or
+" location list) as opposed to a window showing real file content. Shared
+" by every "route this command to a real window" and "quit when nothing
+" real is left" check below, so a new panel type only needs updating here.
+function! s:IsAuxiliaryWindow(winnr) abort
+  let l:buf = winbufnr(a:winnr)
+  if s:BufferHasNERDTree(l:buf) || getbufvar(l:buf, '&filetype') ==# 'minimap'
+    return 1
+  endif
+  let l:info = getwininfo(win_getid(a:winnr))[0]
+  return get(l:info, 'loclist', 0) || get(l:info, 'quickfix', 0)
+endfunction
+
+" True when every remaining window is auxiliary rather than real file
+" content. Used to decide whether closing the last file window should
+" quit Vim, so auxiliary windows added later don't silently defeat that
+" check the way a raw winnr('$') count would.
 function! s:OnlyAuxiliaryWindowsRemain() abort
   for l:winnr in range(1, winnr('$'))
-    let l:buf = winbufnr(l:winnr)
-    if s:BufferHasNERDTree(l:buf) || getbufvar(l:buf, '&filetype') ==# 'minimap'
-      continue
+    if !s:IsAuxiliaryWindow(l:winnr)
+      return 0
     endif
-    if get(getwininfo(win_getid(l:winnr))[0], 'loclist', 0) || get(getwininfo(win_getid(l:winnr))[0], 'quickfix', 0)
-      continue
-    endif
-    return 0
   endfor
   return 1
 endfunction
@@ -312,18 +319,18 @@ function! s:NERDTreeVisible() abort
 endfunction
 
 function! s:FocusFileWindow() abort
-  if !s:BufferHasNERDTree(bufnr('%'))
+  if !s:IsAuxiliaryWindow(winnr())
     return 1
   endif
 
   for l:winnr in range(1, winnr('$'))
-    if !s:BufferHasNERDTree(winbufnr(l:winnr))
+    if !s:IsAuxiliaryWindow(l:winnr)
       execute l:winnr . 'wincmd w'
       return 1
     endif
   endfor
 
-  echoerr 'No non-NERDTree window available'
+  echoerr 'No file window available'
   return 0
 endfunction
 
