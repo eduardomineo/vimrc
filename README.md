@@ -226,7 +226,11 @@ Undo files live in `~/.vim/undo`. The directory is created automatically with mo
 
 ## Project directory behavior
 
-When `~/Repositories` exists, Vim starts there. If it does not exist, startup continues in the current directory. This makes the same vimrc usable in containers and sandboxes.
+Vim starts in `$VIMRC_DEFAULT_CWD` when that environment variable is set and points at a directory that exists. Otherwise, and if the variable's target doesn't exist, it starts in the home directory. This makes the same vimrc usable across machines, containers, and sandboxes without editing it — set the variable in your shell profile to override the default:
+
+```bash
+export VIMRC_DEFAULT_CWD=~/Repositories
+```
 
 For language servers and searches, opening Vim from a project root is still recommended:
 

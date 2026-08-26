@@ -67,8 +67,13 @@ let g:coc_user_config = {
 let mapleader = ' '
 let maplocalleader = ' '
 
-" Start at the host repositories directory when it exists.
-let s:cwd_dir = expand('~')
+" Start at $VIMRC_DEFAULT_CWD when set and valid, otherwise the home
+" directory. This keeps the same vimrc usable across machines,
+" containers, and sandboxes with different layouts.
+let s:cwd_dir = empty($VIMRC_DEFAULT_CWD) ? expand('~') : expand($VIMRC_DEFAULT_CWD)
+if !isdirectory(s:cwd_dir)
+  let s:cwd_dir = expand('~')
+endif
 if isdirectory(s:cwd_dir)
   execute 'cd ' . fnameescape(s:cwd_dir)
 endif
