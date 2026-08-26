@@ -187,7 +187,7 @@ The minimap opens automatically for every buffer (`g:minimap_auto_start = 1`); u
 | Key | Action |
 | --- | --- |
 | `Ctrl-Right` / `Ctrl-Left` | Next/previous buffer |
-| `Alt-Shift-Left/Right` | Focus left/right window |
+| `Alt-Shift-Left/Right/Up/Down` | Focus left/right/up/down window |
 | `Alt-<` / `Alt->` | Narrow/widen window |
 | `-` / `+` | Shorten/tall window |
 | `Alt-w` | Close the current buffer, keeping the window |
@@ -251,6 +251,8 @@ Useful Fugitive commands:
 :Gwrite
 :G blame
 ```
+
+Press `gq` to close a Fugitive buffer (status, blame, diff, etc.) — not `q`, which is Vim's own start-macro-recording key, and not mapped to anything by Fugitive itself.
 
 GitGutter shows changed, added, and removed lines in the sign column. `Space f c` searches commits through FZF.
 

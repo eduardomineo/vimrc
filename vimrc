@@ -534,6 +534,8 @@ nnoremap <silent> <Right> <Right>:nohlsearch<CR>
 
 nnoremap <silent> <A-S-Left> :wincmd h<CR>
 nnoremap <silent> <A-S-Right> :wincmd l<CR>
+nnoremap <silent> <A-S-Up> :wincmd k<CR>
+nnoremap <silent> <A-S-Down> :wincmd j<CR>
 
 nnoremap <Esc>< <C-W><
 nnoremap <Esc>> <C-W>>
