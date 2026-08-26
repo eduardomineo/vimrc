@@ -188,10 +188,13 @@ augroup nerdtree_lifecycle
   autocmd VimEnter * if argc() == 0 && !exists('s:std_in') && v:this_session == '' | NERDTree | wincmd p | endif
 
   " Close the tab/Vim when only auxiliary windows (NERDTree, minimap,
-  " quickfix/loclist) remain — not just when NERDTree is literally alone,
-  " since minimap or an open diagnostics list would otherwise keep the
-  " window count above 1 and silently defeat this check.
-  autocmd BufEnter * if exists('b:NERDTree') && b:NERDTree.isTabTree() && s:OnlyAuxiliaryWindowsRemain() | call feedkeys(":quit\<CR>:\<BS>") | endif
+  " quickfix/loclist) remain. Closes them directly via :close/:quit rather
+  " than feedkeys()-ing ":quit<CR>": that string goes through the very
+  " same <CR> cnoremap as real typed input (both ours and NERDTree's own
+  " buffer-local one, which deliberately dodges closing the NERDTree
+  " window itself), making the old approach dependent on exactly which
+  " window ends up focused. This closes everything auxiliary in one go.
+  autocmd BufEnter * call s:QuitIfOnlyAuxiliaryWindowsRemain()
 
   " Keep file buffers from replacing the NERDTree window. Guarded against
   " quickfix/location-list windows: those span the full width, so
@@ -244,6 +247,29 @@ function! s:OnlyAuxiliaryWindowsRemain() abort
     return 0
   endfor
   return 1
+endfunction
+
+" Every window already qualified as auxiliary above, so there is nothing
+" worth preserving: close them all and quit the tab (or Vim, if this is
+" the last tab). Deferred via timer_start(0, ...) because Vim disallows
+" changing the window layout from directly inside a BufEnter handler
+" (E1312) — the timer callback runs on the next event-loop tick, once
+" autocmd processing has fully unwound.
+function! s:QuitIfOnlyAuxiliaryWindowsRemain() abort
+  if !s:OnlyAuxiliaryWindowsRemain()
+    return
+  endif
+  call timer_start(0, function('s:CloseAllAuxiliaryWindows'))
+endfunction
+
+function! s:CloseAllAuxiliaryWindows(timer) abort
+  if !s:OnlyAuxiliaryWindowsRemain()
+    return
+  endif
+  while winnr('$') > 1
+    close
+  endwhile
+  quit
 endfunction
 
 " Close the current buffer, keeping the window open on something else.
