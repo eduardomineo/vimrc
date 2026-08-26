@@ -362,6 +362,21 @@ function! s:NERDTreeVisible() abort
   return 0
 endfunction
 
+" The tree's own root path, so it can be reopened at exactly the same
+" place later — not wherever getcwd() happens to be by then. Ambient cwd
+" isn't guaranteed stable across an FZF picker session (a Files/Rg dir
+" argument, or anything else that does a :cd/:lcd), and NERDTree's own
+" bare :NERDTree command falls back to getcwd() when given no path.
+function! s:NERDTreeRootPath() abort
+  for l:winnr in range(1, winnr('$'))
+    let l:buf = winbufnr(l:winnr)
+    if s:BufferHasNERDTree(l:buf)
+      return getbufvar(l:buf, 'NERDTree').root.path.str()
+    endif
+  endfor
+  return ''
+endfunction
+
 function! s:FocusFileWindow() abort
   if !s:IsAuxiliaryWindow(winnr())
     return 1
@@ -382,6 +397,7 @@ function! s:HideNERDTreeForFzf() abort
   if s:NERDTreeVisible()
     let t:restore_nerdtree_after_fzf = 1
     let t:fzf_return_winid = win_getid()
+    let t:nerdtree_restore_root = s:NERDTreeRootPath()
     silent! NERDTreeClose
   endif
 endfunction
@@ -394,8 +410,14 @@ function! s:RestoreNERDTreeAfterFzf(...) abort
   unlet t:restore_nerdtree_after_fzf
   let l:return_winid = get(t:, 'fzf_return_winid', 0)
   unlet! t:fzf_return_winid
+  let l:root = get(t:, 'nerdtree_restore_root', '')
+  unlet! t:nerdtree_restore_root
 
-  silent! NERDTree
+  if !empty(l:root) && isdirectory(l:root)
+    execute 'NERDTree' fnameescape(l:root)
+  else
+    silent! NERDTree
+  endif
 
   if l:return_winid > 0 && win_id2win(l:return_winid) > 0
     call win_gotoid(l:return_winid)
