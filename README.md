@@ -1,3 +1,4 @@
+
 # Vim development environment
 
 A practical Ubuntu-oriented Vim setup built around NERDTree, FZF, ripgrep, coc.nvim (with Volar for Vue), Fugitive, GitGutter, Airline, minimap.vim, and Glow.
@@ -252,7 +253,11 @@ Useful Fugitive commands:
 :G blame
 ```
 
-Press `gq` to close a Fugitive buffer (status, blame, diff, etc.) — not `q`, which is Vim's own start-macro-recording key, and not mapped to anything by Fugitive itself.
+Press `gq` to close a Fugitive buffer (status, blame, diff, etc.) — not `q`, which is Vim's own start-macro-recording key. `gq` is remapped globally to also close a `:Gdiffsplit` from anywhere (see below); Fugitive's own buffer-local `gq` (e.g. in the `:Git` status buffer) still takes priority wherever Fugitive already defines it, so this only fills the gap elsewhere.
+
+`:Gdiffsplit`/`:Gvdiffsplit`/`:Ghdiffsplit` are wrapped to always run against the file window, so triggering one from NERDTree, the minimap, or the diagnostics window diffs your actual file instead of that panel's own buffer. They also skip opening anything at all when there's nothing to compare — an untracked file, a tracked one that's unchanged, or no file open at all yet (the initial empty buffer) — rather than leaving an empty diff window behind; a file with unsaved-but-not-yet-written changes always still opens the diff, since Fugitive diffs the live buffer, not just what's on disk.
+
+To leave a diff, use `gq` (or `Space g q`, same action) rather than Fugitive's own `dq`: `dq` is only mapped on the diff's read-only git-object pane (never when diffing against the index, the default with no argument, since that side is editable) — and even there it closes your working file, not the diff, leaving you stuck looking at the historic version. `gq`/`Space g q` instead closes every diff window in the tab from wherever you are, and always leaves you back in your file with diff mode off.
 
 GitGutter shows changed, added, and removed lines in the sign column. `Space f c` searches commits through FZF.
 

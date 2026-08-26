@@ -602,6 +602,114 @@ nnoremap <silent> <leader>fh :call <SID>RunFzfOutsideNERDTree('History')<CR>
 nnoremap <silent> <leader>fc :call <SID>RunFzfOutsideNERDTree('Commits')<CR>
 
 """"""""""""""""""""""""""""
+" Fugitive Config          "
+""""""""""""""""""""""""""""
+" True when `git diff --quiet [ref] -- <file>` would show nothing: no
+" difference against the given ref (or the index, if none given), which
+" also covers an untracked file — plain `git diff` never shows those
+" either, so this one check handles both "nothing changed" cases without
+" needing a separate tracked/untracked check.
+function! s:GitHasDiff(ref) abort
+  " No real file (e.g. the initial unnamed buffer before opening
+  " anything) — nothing to diff at all, and passing an empty pathspec to
+  " git below would error, not indicate a clean file.
+  if empty(expand('%:p'))
+    return 0
+  endif
+  " system() with a List argument (argv-style, no shell) silently fails
+  " on this Vim build — confirmed even for a trivial ['echo', 'hello']
+  " (exit 2, no output) — so this needs a shell-escaped string instead.
+  let l:cmd = 'git -C ' . shellescape(expand('%:p:h')) . ' diff --quiet'
+  if !empty(a:ref)
+    let l:cmd .= ' ' . shellescape(a:ref)
+  endif
+  let l:cmd .= ' -- ' . shellescape(expand('%:p'))
+  call system(l:cmd)
+  " --quiet exits 1 specifically for "differences found". Any other
+  " nonzero (128 for an invalid pathspec, no repo, etc.) is an error, not
+  " evidence of a diff — treat those as "nothing to show" too, rather
+  " than assume a diff exists just because the exit code wasn't 0.
+  return v:shell_error == 1
+endfunction
+
+" Route Gdiffsplit/Gvdiffsplit/Ghdiffsplit to the file window first, the
+" same way FZF pickers are: run from NERDTree, the minimap, or the
+" diagnostics window, Fugitive otherwise tries to diff that panel's own
+" buffer (e.g. a bogus 'fugitive:///.../0/NERD_tree_tab_1') and leaves it
+" stuck in diff mode. Also skips opening anything at all when there's
+" nothing to compare, rather than leaving an empty diff window behind —
+" skipped for the bang variant (diff against all ancestors, which this
+" single-ref check can't meaningfully represent) and whenever the buffer
+" has unsaved changes: Fugitive diffs the live buffer content, not just
+" what's on disk, so git-diff-against-disk can't tell whether there's
+" something to show in that case — always let it proceed instead.
+function! s:GitDiffsplit(vertical, bang, mods, args) abort
+  call s:FocusFileWindow()
+  if !a:bang && !&modified && !s:GitHasDiff(a:args)
+    echo 'No changes to diff'
+    return
+  endif
+  execute fugitive#Diffsplit(a:vertical, a:bang, a:mods, a:args)
+endfunction
+
+" Vundle-managed plugin scripts (including Fugitive's own, which define
+" the real :Gdiffsplit et al) load automatically after this entire vimrc
+" finishes sourcing — so overriding them here directly would just get
+" clobbered right back by Fugitive's own definitions moments later.
+" Deferring to VimEnter runs this after all plugin loading is done.
+"
+" Each override is its own :command! statement rather than several
+" chained with '|' on one line: :command!'s replacement text runs to the
+" end of the line and swallows a trailing '|' as part of itself instead
+" of treating it as a separator, so a chained second :command! there
+" never actually executes — confirmed empirically, not just from docs.
+function! s:DefineDiffsplitOverrides() abort
+  command! -bar -bang -nargs=* -complete=customlist,fugitive#EditComplete Gdiffsplit
+        \ call s:GitDiffsplit(1, <bang>0, "<mods>", <q-args>)
+  command! -bar -bang -nargs=* -complete=customlist,fugitive#EditComplete Ghdiffsplit
+        \ call s:GitDiffsplit(0, <bang>0, "<mods>", <q-args>)
+  command! -bar -bang -nargs=* -complete=customlist,fugitive#EditComplete Gvdiffsplit
+        \ call s:GitDiffsplit(0, <bang>0, "vertical <mods>", <q-args>)
+endfunction
+
+augroup fugitive_diffsplit_routing
+  autocmd!
+  autocmd VimEnter * ++once call s:DefineDiffsplitOverrides()
+augroup END
+
+" A reliable, position-independent way to leave a Gdiffsplit. Fugitive's
+" own 'dq' is inconsistent: it's only mapped on the diff's read-only
+" git-object pane (never on a bare Gdiffsplit against the index, since
+" that blob is modifiable), and even there it closes the wrong side —
+" your working file, not the git-object view. This instead closes
+" whichever window(s) in the tab hold a git-object buffer, from anywhere,
+" leaving the real file with diff mode off (Vim turns it off automatically
+" once only one diffed window remains).
+function! s:CloseGitDiff() abort
+  let l:closed = 0
+  for l:winnr in range(winnr('$'), 1, -1)
+    let l:buf = winbufnr(l:winnr)
+    " b:fugitive_type alone isn't reliable — it's unset on the git-object
+    " buffer for an untracked file, even though it's still a real
+    " fugitive:// buffer, so fall back to matching the buffer name too.
+    if !empty(getbufvar(l:buf, 'fugitive_type', '')) || bufname(l:buf) =~# '^fugitive://'
+      execute l:winnr . 'close'
+      let l:closed = 1
+    endif
+  endfor
+  if !l:closed
+    echo 'No git diff window open in this tab'
+  endif
+endfunction
+nnoremap <silent> <leader>gq :call <SID>CloseGitDiff()<CR>
+" Global, not buffer-local, so Fugitive's own buffer-local 'gq' (status,
+" blame, etc. — always defined with <buffer>) still wins wherever it
+" exists; this only fills in the gap everywhere else, i.e. for closing a
+" diff from the file window, NERDTree, the minimap, or the diagnostics
+" window, none of which Fugitive maps 'gq' on at all.
+nnoremap <silent> gq :call <SID>CloseGitDiff()<CR>
+
+""""""""""""""""""""""""""""
 " Glow for markdown viewer
 """"""""""""""""""""""""""""
 function! s:CloseGlowTab(winid, timer) abort
