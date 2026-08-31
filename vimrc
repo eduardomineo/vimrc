@@ -140,42 +140,56 @@ set shortmess+=c
 set updatetime=100
 
 " Retain undo history across Vim sessions.
-if has('persistent_undo')
+if has('persistent_undo') && exists('*sha256')
   let s:undo_dir = expand('~/.vim/undo')
   if !isdirectory(s:undo_dir)
     call mkdir(s:undo_dir, 'p', 0700)
   endif
-  let &undodir = s:undo_dir . '//'
-  set undofile
 
-  " The trailing '//' above makes Vim name each undo file after the
-  " buffer's full absolute path with every '/' replaced by '%', squashed
-  " into one filename component (this avoids collisions between
-  " same-named files from different directories). Some filesystems - most
-  " notably Ubuntu's encrypted home directory (eCryptfs) - cap a single
-  " filename component well below the usual 255-byte limit, commonly
-  " around 143 bytes, so a sufficiently deep project path overflows it
-  " and every :w emits "E828: Cannot open undo file for writing" (the
-  " file itself still saves; only persistent undo for that buffer is
-  " lost). Vim's undofile naming isn't user-overridable, so pre-compute
-  " the name it would use for the buffer being opened and just skip
-  " persistent undo for that one buffer when the name would be too long,
-  " instead of erroring on every save.
-  let s:max_undofile_component_len = 140
-  function! s:GuardLongUndofileName() abort
+  " Vim's own 'undofile'/'undodir' mechanism names each undo file after
+  " the buffer's full absolute path with every '/' replaced by '%',
+  " squashed into one filename component (needed to avoid collisions
+  " between same-named files from different directories). Some
+  " filesystems - most notably Ubuntu's encrypted home directory
+  " (eCryptfs) - cap a single filename component well below the usual
+  " 255-byte limit, commonly around 143 bytes, so a sufficiently deep
+  " project path overflows it and every :w emits "E828: Cannot open undo
+  " file for writing" (the file itself still saves; only persistent undo
+  " for that buffer is lost). That naming scheme isn't configurable
+  " through 'undodir'/'undofile' themselves, so persistent undo is
+  " managed manually here instead, exactly as documented at `:help
+  " undo-persistence`: each buffer's undo history is saved to, and
+  " restored from, a name derived from a SHA-256 hash of its full path
+  " (a fixed 64 hex characters) rather than the path itself, which can
+  " never overflow any filesystem's filename limit no matter how deep
+  " the real path is. 'undofile' is deliberately left off throughout -
+  " this replaces it rather than layering on top of it.
+  function! s:UndofilePath() abort
     let l:path = expand('%:p')
-    if empty(l:path)
-      return
+    if empty(l:path) || &buftype !=# ''
+      return ''
     endif
-    let l:encoded_name = substitute(l:path, '/', '%', 'g')
-    if len(l:encoded_name) > s:max_undofile_component_len
-      setlocal noundofile
+    return s:undo_dir . '/' . sha256(l:path)
+  endfunction
+
+  function! s:ReadPersistentUndo() abort
+    let l:undofile = s:UndofilePath()
+    if !empty(l:undofile) && filereadable(l:undofile)
+      silent! execute 'rundo ' . fnameescape(l:undofile)
     endif
   endfunction
 
-  augroup undofile_length_guard
+  function! s:WritePersistentUndo() abort
+    let l:undofile = s:UndofilePath()
+    if !empty(l:undofile)
+      silent! execute 'wundo! ' . fnameescape(l:undofile)
+    endif
+  endfunction
+
+  augroup persistent_undo_by_hash
     autocmd!
-    autocmd BufReadPre,BufNewFile * call s:GuardLongUndofileName()
+    autocmd BufReadPost * call s:ReadPersistentUndo()
+    autocmd BufWritePost * call s:WritePersistentUndo()
   augroup END
 endif
 

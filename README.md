@@ -284,9 +284,11 @@ Glow opens in a temporary terminal tab. Press `q` inside Glow; its terminal and 
 
 ### Persistent undo
 
-Undo files live in `~/.vim/undo`. The directory is created automatically with mode 0700. Each undo file is named after the edited file's full path with every `/` replaced by `%`, so files from different directories never collide.
+Undo files live in `~/.vim/undo`. The directory is created automatically with mode 0700.
 
-On filesystems that cap a single filename well below the usual 255 bytes — notably Ubuntu's encrypted home directory (eCryptfs), commonly around 143 bytes — a deep enough project path can overflow that limit; Vim then reports `E828: Cannot open undo file for writing` on every save (the save itself still succeeds; only persistent undo for that file is lost). Since Vim's undo filename scheme can't be changed, the vimrc precomputes that name for each buffer as it's opened and disables persistent undo (`noundofile`) just for that one buffer when the name would exceed 140 bytes, instead of erroring on every save. In-buffer undo/redo is unaffected; only the cross-session persistence for that specific deep-path file is skipped.
+Vim's own `'undofile'`/`'undodir'` mechanism names each undo file after the edited file's full path with every `/` replaced by `%`, squashed into one filename component. On filesystems that cap a single filename well below the usual 255 bytes — notably Ubuntu's encrypted home directory (eCryptfs), commonly around 143 bytes — a deep enough project path overflows that limit, and Vim reports `E828: Cannot open undo file for writing` on every save (the save itself still succeeds; only persistent undo for that file is lost).
+
+Since that naming scheme isn't configurable through `'undodir'`/`'undofile'` themselves, persistent undo is handled manually instead, using the approach documented at `:help undo-persistence`: `'undofile'` is left off, and `BufReadPost`/`BufWritePost` autocommands call `:rundo`/`:wundo!` directly with a name derived from a SHA-256 hash of the buffer's full path (a fixed 64 hex characters) rather than the path itself. A fixed-length hashed name can never overflow any filesystem's filename limit, no matter how deep the real path is, so persistent undo keeps working for every file without exception.
 
 - `u`: undo
 - `Ctrl-R`: redo
