@@ -757,6 +757,33 @@ function! s:GitDiffsplit(vertical, bang, mods, args) abort
     return
   endif
   execute fugitive#Diffsplit(a:vertical, a:bang, a:mods, a:args)
+  call s:LockGitDiffWindows()
+endfunction
+
+" The git-object side of the diff (the historical/index blob, identified
+" by fugitive_type or a 'fugitive://' buffer name) is made read-only.
+" Fugitive normally leaves it modifiable on purpose — saving it stages
+" that content — but that's an easy-to-trigger accident here and not a
+" workflow this vimrc otherwise exposes, so it's locked down instead.
+"
+" This previously also set 'winfixbuf' on both diff windows, to stop
+" either one from being switched to a different buffer mid-diff (which
+" silently drops out of diff mode and leaves a stray window gq can no
+" longer identify). Reverted: 'winfixbuf' is a fairly recent addition
+" (Vim 9.1.0313) that isn't present at all on the Vim this is actually
+" used with, so it never took effect there in the first place — dead
+" code kept around for a feature we can't rely on.
+function! s:LockGitDiffWindows() abort
+  for l:winnr in range(1, winnr('$'))
+    if !getwinvar(l:winnr, '&diff')
+      continue
+    endif
+    let l:buf = winbufnr(l:winnr)
+    if !empty(getbufvar(l:buf, 'fugitive_type', '')) || bufname(l:buf) =~# '^fugitive://'
+      call setbufvar(l:buf, '&modifiable', 0)
+      call setbufvar(l:buf, '&readonly', 1)
+    endif
+  endfor
 endfunction
 
 " Vundle-managed plugin scripts (including Fugitive's own, which define

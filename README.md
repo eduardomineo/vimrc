@@ -153,7 +153,7 @@ NERDTree opens automatically when Vim starts without file arguments.
 
 Most terminals encode Alt as an Escape prefix. The vimrc consequently writes these mappings as `<Esc>f`, `<Esc>y`, and `<Esc>w`; they are intended to be pressed as Alt-f, Alt-y, and Alt-w. If entering a mapping literally inside Vim, `Ctrl-V` followed by the Alt combination inserts the same `^[` byte sequence.
 
-The custom quit behavior is intentional:
+Quit behavior differs from plain Vim:
 
 - Plain `:q` refuses to hide a modified file.
 - `:q!` explicitly forces the file window closed.
@@ -206,7 +206,7 @@ New horizontal splits open below; vertical splits open to the right.
 
 `Ctrl-Right`/`Ctrl-Left` are routed to the file window the same way FZF pickers are: triggering them from NERDTree, the minimap, or the diagnostics window switches the buffer shown in the file window rather than whichever panel had focus.
 
-`Alt-w` is a local function, not a plugin (see `reviews/bclose-swallows-diagnostics-window.md` for why the previous `Bclose`-based mapping was replaced). It switches to the alternate or another listed buffer if one exists, otherwise opens a blank one, then deletes the old buffer — it never falls back to NERDTree, minimap, or a quickfix/location-list buffer. Run `vim +PluginClean +qall` to remove the now-unused `bclose.vim` plugin directory.
+`Alt-w` closes the current buffer, keeping the window: it switches to the alternate or another listed buffer if one exists, otherwise opens a blank one, then deletes the old buffer. It never falls back to NERDTree, the minimap, or a quickfix/location-list buffer.
 
 ### Coc.nvim navigation and refactoring
 
@@ -245,7 +245,7 @@ While the completion popup menu is open, `Tab`/`Shift-Tab` cycle candidates and 
 
 Once the diagnostics window is open, it stays in sync automatically: switching to a different file refreshes the list to that file's problems, without moving focus or reopening the window. It never fires while browsing NERDTree, the minimap, or the diagnostics window itself, so it can't blank the list just from glancing at a panel.
 
-Diagnostics also show inline as you move around, not just in the list: `diagnostic.checkCurrentLine` and `diagnostic.virtualText` display every problem on the current line as text right after the code, so the full message is visible without opening anything. Coc's diagnostic messages print via `:echo` rather than its usual floating popup (`diagnostic.messageTarget = 'echo'`) — that popup was confirmed, through live instrumentation, to corrupt NERDTree's scroll position (a Vim popup-redraw defect, not something fixable here); disabling it costs nothing since the inline virtual text already shows the complete message.
+Diagnostics also show inline as you move around, not just in the list: `diagnostic.checkCurrentLine` and `diagnostic.virtualText` display every problem on the current line as text right after the code, so the full message is visible without opening anything. Coc's diagnostic messages print via `:echo` rather than a floating popup.
 
 ### Search and display
 
@@ -268,7 +268,9 @@ Press `gq` to close a Fugitive buffer (status, blame, diff, etc.) — not `q`, w
 
 `:Gdiffsplit`/`:Gvdiffsplit`/`:Ghdiffsplit` are wrapped to always run against the file window, so triggering one from NERDTree, the minimap, or the diagnostics window diffs your actual file instead of that panel's own buffer. They also skip opening anything at all when there's nothing to compare — an untracked file, a tracked one that's unchanged, or no file open at all yet (the initial empty buffer) — rather than leaving an empty diff window behind; a file with unsaved-but-not-yet-written changes always still opens the diff, since Fugitive diffs the live buffer, not just what's on disk.
 
-To leave a diff, use `gq` (or `Space g q`, same action) rather than Fugitive's own `dq`: `dq` is only mapped on the diff's read-only git-object pane (never when diffing against the index, the default with no argument, since that side is editable) — and even there it closes your working file, not the diff, leaving you stuck looking at the historic version. `gq`/`Space g q` instead closes every diff window in the tab from wherever you are, and always leaves you back in your file with diff mode off.
+To leave a diff, use `gq` (or `Space g q`, same action) rather than Fugitive's own `dq`. `gq` closes every diff window in the tab from wherever you are, and always leaves you back in your file with diff mode off.
+
+The git-object side of the diff (the index or historic blob) is always read-only. Avoid switching either diff window to another buffer (`:bnext`/`:bprevious`, a different NERDTree or FZF selection, ...) while the diff is open — doing so can leave a stray window that `gq` won't close; use `gq`/`Space g q` to leave the diff instead.
 
 GitGutter shows changed, added, and removed lines in the sign column. `Space f c` searches commits through FZF.
 
@@ -284,11 +286,7 @@ Glow opens in a temporary terminal tab. Press `q` inside Glow; its terminal and 
 
 ### Persistent undo
 
-Undo files live in `~/.vim/undo`. The directory is created automatically with mode 0700.
-
-Vim's own `'undofile'`/`'undodir'` mechanism names each undo file after the edited file's full path with every `/` replaced by `%`, squashed into one filename component. On filesystems that cap a single filename well below the usual 255 bytes — notably Ubuntu's encrypted home directory (eCryptfs), commonly around 143 bytes — a deep enough project path overflows that limit, and Vim reports `E828: Cannot open undo file for writing` on every save (the save itself still succeeds; only persistent undo for that file is lost).
-
-Since that naming scheme isn't configurable through `'undodir'`/`'undofile'` themselves, persistent undo is handled manually instead, using the approach documented at `:help undo-persistence`: `'undofile'` is left off, and `BufReadPost`/`BufWritePost` autocommands call `:rundo`/`:wundo!` directly with a name derived from a SHA-256 hash of the buffer's full path (a fixed 64 hex characters) rather than the path itself. A fixed-length hashed name can never overflow any filesystem's filename limit, no matter how deep the real path is, so persistent undo keeps working for every file without exception.
+Undo files live in `~/.vim/undo`, named by a hash of each file's full path rather than the path itself, so persistent undo keeps working no matter how deeply nested a project is. The directory is created automatically with mode 0700.
 
 - `u`: undo
 - `Ctrl-R`: redo
