@@ -39,7 +39,9 @@ call vundle#end()
 let g:coc_global_extensions = ['coc-tsserver', 'coc-pyright', 'coc-clangd']
 
 let g:coc_user_config = {
+      \ 'diagnostic.checkCurrentLine': v:true,
       \ 'diagnostic.virtualText': v:true,
+      \ 'diagnostic.virtualTextCurrentLineOnly': v:false,
       \ 'languageserver': {
       \   'vue': {
       \     'command': expand('~/.local/share/vue-language-server/node_modules/.bin/vue-language-server'),
@@ -248,8 +250,10 @@ augroup nerdtree_lifecycle
   autocmd BufEnter * if &buftype !=# 'quickfix' && winnr() == winnr('h') && bufname('#') =~ 'NERD_tree_\d\+' && bufname('%') !~ 'NERD_tree_\d\+' && winnr('$') > 1 |
         \ let buf=bufnr() | buffer# | execute "normal! \<C-W>w" | execute 'buffer'.buf | endif
 
-  " Mirror NERDTree into normal tabs, excluding temporary Glow tabs.
-  autocmd BufWinEnter * if &buftype !=# 'quickfix' && getcmdwintype() ==# '' && !get(t:, 'glow_preview', 0) | silent! NERDTreeMirror | endif
+  " Mirror NERDTree only when a normal file buffer enters a window.
+  " Coc floats and other auxiliary buffers use a non-empty buftype and
+  " must not move or otherwise disturb the tree selection.
+  autocmd BufWinEnter * if &buftype ==# '' && getcmdwintype() ==# '' && !get(t:, 'glow_preview', 0) | silent! NERDTreeMirror | endif
 augroup END
 
 let NERDTreeShowHidden=1
