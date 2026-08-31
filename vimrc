@@ -225,6 +225,7 @@ nnoremap <silent> <leader>jt <Plug>(coc-type-definition)
 nnoremap <silent> <leader>jh :call CocActionAsync('doHover')<CR>
 nnoremap <leader>jn <Plug>(coc-rename)
 nnoremap <silent> <leader>jf <Plug>(coc-fix-current)
+nnoremap <silent> <leader>jo :call <SID>RunInFileWindow('CocList outline')<CR>
 
 " Show refactor actions (extract to function/constant, etc.) available
 " for the current position or visual selection, when the attached
