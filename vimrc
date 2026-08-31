@@ -78,6 +78,39 @@ let g:coc_user_config = {
       \ }
       \ }
 
+" clangd needs a project's real compile_commands.json (include paths,
+" defines, etc.) to fully understand a C/C++ file — without one it falls
+" back to guessed flags, which can leave it unable to resolve a symbol at
+" all in some contexts (e.g. an out-of-class, namespace-qualified method
+" definition depending on unresolved types) even though simpler symbols
+" nearby still work. A CMake build configured via Qt Creator commonly
+" lands somewhere clangd's own upward directory search won't find on its
+" own (e.g. a 'build' directory that's a sibling of 'src' rather than a
+" child of it), and Qt Creator keeps its own copy of the compile database
+" one level deeper still, under a 'build-dir/.qtc_clangd/' subfolder.
+"
+" $VIMRC_CLANGD_COMPILE_COMMANDS_DIR names that build directory, as a
+" path relative to Vim's current working directory (typically set via
+" $VIMRC_DEFAULT_CWD) — mirror whatever relative position it's actually
+" in for the project you're working on, e.g.:
+"   export VIMRC_DEFAULT_CWD=~/project/src/some-module
+"   export VIMRC_CLANGD_COMPILE_COMMANDS_DIR=../../build/some-module
+" Unset by default, which leaves clangd to its own upward search.
+function! s:SetClangdCompilationDatabase() abort
+  if empty($VIMRC_CLANGD_COMPILE_COMMANDS_DIR)
+    return
+  endif
+  let l:candidate = fnamemodify($VIMRC_CLANGD_COMPILE_COMMANDS_DIR, ':p')
+  call coc#config('clangd.compilationDatabaseCandidates',
+        \ [l:candidate, l:candidate . '/.qtc_clangd'])
+endfunction
+
+augroup clangd_compilation_database
+  autocmd!
+  autocmd BufReadPre,BufNewFile *.c,*.cc,*.cpp,*.cxx,*.h,*.hh,*.hpp,*.hxx
+        \ call s:SetClangdCompilationDatabase()
+augroup END
+
 """"""""""""""""""""""""""""
 " General Config           "
 """"""""""""""""""""""""""""

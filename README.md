@@ -109,6 +109,15 @@ To install or reinstall manually:
 
 `coc-clangd` is the coc extension; it still needs a `clangd` executable on `PATH` to actually run (installed above under Requirements). `vimrc` points `clangd.path` at `exepath('clangd')`, so it's picked up automatically once installed.
 
+Set `$VIMRC_CLANGD_COMPILE_COMMANDS_DIR` to point clangd at a project's `compile_commands.json` (e.g. the build directory produced by configuring a CMake project in Qt Creator), as a path relative to Vim's current working directory:
+
+```bash
+export VIMRC_DEFAULT_CWD=~/project/src/some-module
+export VIMRC_CLANGD_COMPILE_COMMANDS_DIR=../../build/some-module
+```
+
+Its `.qtc_clangd` subfolder (Qt Creator's own copy of the compile database) is checked too. Unset by default, leaving clangd to its own upward directory search. Only the first C/C++ file opened in a Vim session takes effect this way — switching to a file needing a different build directory in the same running Vim doesn't reconfigure an already-started clangd.
+
 ## Vue completion with Volar
 
 coc-tsserver handles JavaScript and TypeScript natively, but Vue single-file components require Volar. This configuration expects it under `~/.local/share/vue-language-server`.
