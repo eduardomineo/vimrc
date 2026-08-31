@@ -11,7 +11,7 @@ Install the basic tools:
 
 ```bash
 sudo apt update
-sudo apt install git npm ripgrep vim-nox
+sudo apt install git npm ripgrep vim-nox clangd
 ```
 
 Install [Glow](https://github.com/charmbracelet/glow) using its Ubuntu installation instructions if it is not available from your configured repositories.
@@ -106,6 +106,8 @@ To install or reinstall manually:
 ```vim
 :CocInstall coc-tsserver coc-pyright coc-clangd
 ```
+
+`coc-clangd` is the coc extension; it still needs a `clangd` executable on `PATH` to actually run (installed above under Requirements). `vimrc` points `clangd.path` at `exepath('clangd')`, so it's picked up automatically once installed.
 
 ## Vue completion with Volar
 

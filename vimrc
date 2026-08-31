@@ -52,6 +52,7 @@ let g:coc_user_config = {
       \ 'diagnostic.virtualText': v:true,
       \ 'diagnostic.virtualTextCurrentLineOnly': v:false,
       \ 'diagnostic.messageTarget': 'echo',
+      \ 'clangd.path': exepath('clangd'),
       \ 'languageserver': {
       \   'vue': {
       \     'command': expand('~/.local/share/vue-language-server/node_modules/.bin/vue-language-server'),
