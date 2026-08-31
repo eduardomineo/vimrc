@@ -175,6 +175,15 @@ While an FZF picker has a preview pane, use `Shift-Up` and `Shift-Down` to scrol
 
 The file source includes hidden files but excludes common build, metadata, cache, Git, and `node_modules` directories. Errors are written to `~/.vim/fzf-error.log`.
 
+`:Rg` and `:Ag` accept extra `rg`/`ag` flags by typing them before a literal ` -- `, exactly like invoking `rg`/`ag` at a shell prompt: flags first, then `--`, then the search text. This is most useful for confining a search to one file type via `rg`'s `--glob` or `ag`'s `-G` (a regex, not a glob):
+
+```vim
+:Rg --glob '*.vue' -- someSearchTerm
+:Ag -G '\.vue$' -- someSearchTerm
+```
+
+Plain `:Rg someSearchTerm` / `:Ag someSearchTerm` (no ` -- `) still work exactly as before; the whole typed line is just treated as the search text.
+
 ### Minimap
 
 | Key | Action |
@@ -275,7 +284,9 @@ Glow opens in a temporary terminal tab. Press `q` inside Glow; its terminal and 
 
 ### Persistent undo
 
-Undo files live in `~/.vim/undo`. The directory is created automatically with mode 0700.
+Undo files live in `~/.vim/undo`. The directory is created automatically with mode 0700. Each undo file is named after the edited file's full path with every `/` replaced by `%`, so files from different directories never collide.
+
+On filesystems that cap a single filename well below the usual 255 bytes — notably Ubuntu's encrypted home directory (eCryptfs), commonly around 143 bytes — a deep enough project path can overflow that limit; Vim then reports `E828: Cannot open undo file for writing` on every save (the save itself still succeeds; only persistent undo for that file is lost). Since Vim's undo filename scheme can't be changed, the vimrc precomputes that name for each buffer as it's opened and disables persistent undo (`noundofile`) just for that one buffer when the name would exceed 140 bytes, instead of erroring on every save. In-buffer undo/redo is unaffected; only the cross-session persistence for that specific deep-path file is skipped.
 
 - `u`: undo
 - `Ctrl-R`: redo

@@ -147,6 +147,36 @@ if has('persistent_undo')
   endif
   let &undodir = s:undo_dir . '//'
   set undofile
+
+  " The trailing '//' above makes Vim name each undo file after the
+  " buffer's full absolute path with every '/' replaced by '%', squashed
+  " into one filename component (this avoids collisions between
+  " same-named files from different directories). Some filesystems - most
+  " notably Ubuntu's encrypted home directory (eCryptfs) - cap a single
+  " filename component well below the usual 255-byte limit, commonly
+  " around 143 bytes, so a sufficiently deep project path overflows it
+  " and every :w emits "E828: Cannot open undo file for writing" (the
+  " file itself still saves; only persistent undo for that buffer is
+  " lost). Vim's undofile naming isn't user-overridable, so pre-compute
+  " the name it would use for the buffer being opened and just skip
+  " persistent undo for that one buffer when the name would be too long,
+  " instead of erroring on every save.
+  let s:max_undofile_component_len = 140
+  function! s:GuardLongUndofileName() abort
+    let l:path = expand('%:p')
+    if empty(l:path)
+      return
+    endif
+    let l:encoded_name = substitute(l:path, '/', '%', 'g')
+    if len(l:encoded_name) > s:max_undofile_component_len
+      setlocal noundofile
+    endif
+  endfunction
+
+  augroup undofile_length_guard
+    autocmd!
+    autocmd BufReadPre,BufNewFile * call s:GuardLongUndofileName()
+  augroup END
 endif
 
 if has('gui_running')
@@ -620,6 +650,41 @@ let $FZF_DEFAULT_COMMAND='rg --files --hidden
             \ 2> ~/.vim/fzf-error.log'
 
 let g:fzf_layout = { 'window': 'enew' }
+
+" Both :Rg and :Ag ship with fzf.vim already able to accept extra
+" ripgrep/ag flags (fzf#vim#grep's command string, fzf#vim#ag's optional
+" ag_opts argument) but their default `command!` definitions only ever
+" forward the whole typed line as one shell-escaped search pattern, so a
+" flag like --glob or -G typed after the query is just treated as literal
+" search text instead of an actual flag. These overrides split on rg/ag's
+" own `--` convention (flags before it, query after, exactly like typing
+" `rg`/`ag` at a real shell prompt) so flags reach the tool as flags:
+"   :Rg --glob '*.vue' -- someSearchTerm
+"   :Ag -G '\.vue$' -- someSearchTerm
+" With no ` -- ` present, the whole typed line is still just the query,
+" so plain `:Rg foo` / `:Ag foo` keep working exactly as before.
+function! s:SplitGrepArgs(args) abort
+  let idx = match(a:args, ' -- ')
+  if idx == -1
+    return ['', a:args]
+  endif
+  return [a:args[0 : idx - 1], a:args[idx + 4 :]]
+endfunction
+
+function! s:RgWithArgs(args, bang) abort
+  let [rg_flags, query] = s:SplitGrepArgs(a:args)
+  let rg_cmd = 'rg --column --line-number --no-heading --color=always --smart-case '
+        \ . rg_flags . ' -- ' . fzf#shellescape(query)
+  call fzf#vim#grep(rg_cmd, fzf#vim#with_preview(), a:bang)
+endfunction
+
+function! s:AgWithArgs(args, bang) abort
+  let [ag_flags, query] = s:SplitGrepArgs(a:args)
+  call fzf#vim#ag(query, ag_flags, fzf#vim#with_preview(), a:bang)
+endfunction
+
+command! -nargs=* -bang Rg call s:RgWithArgs(<q-args>, <bang>0)
+command! -nargs=* -bang Ag call s:AgWithArgs(<q-args>, <bang>0)
 
 nnoremap <silent> <C-p> :call <SID>RunFzfOutsideNERDTree('Files')<CR>
 nnoremap <silent> <leader>ff :call <SID>RunFzfOutsideNERDTree('Files')<CR>
