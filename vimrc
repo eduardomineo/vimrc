@@ -38,10 +38,20 @@ call vundle#end()
 " mode disabled.
 let g:coc_global_extensions = ['coc-tsserver', 'coc-pyright', 'coc-clangd']
 
+" 'echo' instead of the default 'float': the floating diagnostic popup
+" was confirmed (live, with autocmd instrumentation) to corrupt NERDTree's
+" scroll position — creating that popup makes Vim briefly recompute
+" NERDTree's topline as if it equaled NERDTree's own cursor line (as
+" through `normal! zt`), self-correcting about 1.5s later. This
+" reproduced with our own coc_float_redraw workaround fully disabled, so
+" it isn't caused by anything in this vimrc; it's a Vim popup-window
+" redraw defect. Switching off the popup removes the trigger entirely,
+" and loses nothing: virtualText below already shows the full message.
 let g:coc_user_config = {
       \ 'diagnostic.checkCurrentLine': v:true,
       \ 'diagnostic.virtualText': v:true,
       \ 'diagnostic.virtualTextCurrentLineOnly': v:false,
+      \ 'diagnostic.messageTarget': 'echo',
       \ 'languageserver': {
       \   'vue': {
       \     'command': expand('~/.local/share/vue-language-server/node_modules/.bin/vue-language-server'),
@@ -182,6 +192,37 @@ nnoremap <silent> <leader>dc :lclose<CR>
 nnoremap <silent> ]d <Plug>(coc-diagnostic-next)
 nnoremap <silent> [d <Plug>(coc-diagnostic-prev)
 
+" The diagnostic popup itself is now disabled (see 'diagnostic.messageTarget'
+" above) since it was confirmed, with live autocmd instrumentation and the
+" workaround below fully disabled, to corrupt NERDTree's topline on its
+" own — a genuine Vim popup-redraw defect, not something fixable from
+" here. This timer remains only for the floats that ARE still real
+" popups — hover (Space j h) and signature help — forcing the same
+" self-correction Vim does on its own ~1.5s later to happen immediately,
+" since those are user-triggered occasionally rather than firing on
+" every cursor move like the diagnostic float did.
+let s:coc_float_redraw_timer = -1
+
+function! s:RedrawVisibleCocFloat(timer) abort
+  if exists('*coc#float#get_float_win_list')
+        \ && !empty(coc#float#get_float_win_list())
+    redraw
+  endif
+endfunction
+
+function! s:ScheduleCocFloatRedraw() abort
+  if s:coc_float_redraw_timer != -1
+    call timer_stop(s:coc_float_redraw_timer)
+  endif
+  let s:coc_float_redraw_timer = timer_start(
+        \ 250, function('s:RedrawVisibleCocFloat'))
+endfunction
+
+augroup coc_float_redraw
+  autocmd!
+  autocmd CursorMoved * call <SID>ScheduleCocFloatRedraw()
+augroup END
+
 function! s:DiagnosticsWindowOpen() abort
   for l:winnr in range(1, winnr('$'))
     if get(getwininfo(win_getid(l:winnr))[0], 'loclist', 0)
@@ -250,10 +291,11 @@ augroup nerdtree_lifecycle
   autocmd BufEnter * if &buftype !=# 'quickfix' && winnr() == winnr('h') && bufname('#') =~ 'NERD_tree_\d\+' && bufname('%') !~ 'NERD_tree_\d\+' && winnr('$') > 1 |
         \ let buf=bufnr() | buffer# | execute "normal! \<C-W>w" | execute 'buffer'.buf | endif
 
-  " Mirror NERDTree only when a normal file buffer enters a window.
-  " Coc floats and other auxiliary buffers use a non-empty buftype and
-  " must not move or otherwise disturb the tree selection.
-  autocmd BufWinEnter * if &buftype ==# '' && getcmdwintype() ==# '' && !get(t:, 'glow_preview', 0) | silent! NERDTreeMirror | endif
+  " Give a new normal tab a tree by mirroring one from another tab. Once
+  " this tab owns a tree, never mirror again merely because a buffer
+  " re-enters its window: closing a Coc float does exactly that, and
+  " NERDTreeMirror restores the tree's saved cursor/scroll position.
+  autocmd BufWinEnter * if !exists('t:NERDTreeBufName') && getbufvar(+expand('<abuf>'), '&buftype') ==# '' && getcmdwintype() ==# '' && !get(t:, 'glow_preview', 0) && !get(t:, 'restore_nerdtree_after_fzf', 0) | silent! NERDTreeMirror | endif
 augroup END
 
 let NERDTreeShowHidden=1
@@ -367,21 +409,6 @@ function! s:NERDTreeVisible() abort
   return 0
 endfunction
 
-" The tree's own root path, so it can be reopened at exactly the same
-" place later — not wherever getcwd() happens to be by then. Ambient cwd
-" isn't guaranteed stable across an FZF picker session (a Files/Rg dir
-" argument, or anything else that does a :cd/:lcd), and NERDTree's own
-" bare :NERDTree command falls back to getcwd() when given no path.
-function! s:NERDTreeRootPath() abort
-  for l:winnr in range(1, winnr('$'))
-    let l:buf = winbufnr(l:winnr)
-    if s:BufferHasNERDTree(l:buf)
-      return getbufvar(l:buf, 'NERDTree').root.path.str()
-    endif
-  endfor
-  return ''
-endfunction
-
 function! s:FocusFileWindow() abort
   if !s:IsAuxiliaryWindow(winnr())
     return 1
@@ -402,7 +429,6 @@ function! s:HideNERDTreeForFzf() abort
   if s:NERDTreeVisible()
     let t:restore_nerdtree_after_fzf = 1
     let t:fzf_return_winid = win_getid()
-    let t:nerdtree_restore_root = s:NERDTreeRootPath()
     silent! NERDTreeClose
   endif
 endfunction
@@ -415,14 +441,11 @@ function! s:RestoreNERDTreeAfterFzf(...) abort
   unlet t:restore_nerdtree_after_fzf
   let l:return_winid = get(t:, 'fzf_return_winid', 0)
   unlet! t:fzf_return_winid
-  let l:root = get(t:, 'nerdtree_restore_root', '')
-  unlet! t:nerdtree_restore_root
 
-  if !empty(l:root) && isdirectory(l:root)
-    execute 'NERDTree' fnameescape(l:root)
-  else
-    silent! NERDTree
-  endif
+  " NERDTreeClose keeps the tab's tree object alive. Toggle reopens that
+  " same tree, preserving its root, expanded nodes, cursor, and scroll
+  " position; :NERDTree would discard that state and create a fresh tree.
+  silent! NERDTreeToggle
 
   if l:return_winid > 0 && win_id2win(l:return_winid) > 0
     call win_gotoid(l:return_winid)

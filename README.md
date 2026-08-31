@@ -236,6 +236,8 @@ While the completion popup menu is open, `Tab`/`Shift-Tab` cycle candidates and 
 
 Once the diagnostics window is open, it stays in sync automatically: switching to a different file refreshes the list to that file's problems, without moving focus or reopening the window. It never fires while browsing NERDTree, the minimap, or the diagnostics window itself, so it can't blank the list just from glancing at a panel.
 
+Diagnostics also show inline as you move around, not just in the list: `diagnostic.checkCurrentLine` and `diagnostic.virtualText` display every problem on the current line as text right after the code, so the full message is visible without opening anything. Coc's diagnostic messages print via `:echo` rather than its usual floating popup (`diagnostic.messageTarget = 'echo'`) — that popup was confirmed, through live instrumentation, to corrupt NERDTree's scroll position (a Vim popup-redraw defect, not something fixable here); disabling it costs nothing since the inline virtual text already shows the complete message.
+
 ### Search and display
 
 Search is incremental and case-insensitive unless the query contains uppercase characters. `*`, `#`, `g*`, and `g#` highlight their matches. Arrow keys, `Esc`, `Space h`, and entering insert mode clear the highlight.
