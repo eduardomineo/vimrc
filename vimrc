@@ -39,6 +39,7 @@ call vundle#end()
 let g:coc_global_extensions = ['coc-tsserver', 'coc-pyright', 'coc-clangd']
 
 let g:coc_user_config = {
+      \ 'diagnostic.virtualText': v:true,
       \ 'languageserver': {
       \   'vue': {
       \     'command': expand('~/.local/share/vue-language-server/node_modules/.bin/vue-language-server'),
