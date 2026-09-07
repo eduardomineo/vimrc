@@ -7,14 +7,48 @@ The leader key is Space. The configuration treats a Vim tab as a workspace conta
 
 ## Requirements
 
-Install the basic tools:
+### External tools (Ubuntu)
+
+Vundle installs the Vim plugins. Install their command-line dependencies separately and make sure they are on Vim's `PATH`:
 
 ```bash
 sudo apt update
-sudo apt install git npm ripgrep vim-nox clangd
+sudo apt install git npm ripgrep fzf silversearcher-ag vim-nox clangd curl gnupg less
 ```
 
-Install [Glow](https://github.com/charmbracelet/glow) using its Ubuntu installation instructions if it is not available from your configured repositories.
+| Tool | Used for |
+| --- | --- |
+| `fzf` | Fuzzy pickers such as `:Files`, `:Buffers`, and `:History` |
+| `rg` (ripgrep) | File listing for `:Files` and project text search with `:Rg` |
+| `ag` (The Silver Searcher) | Alternative project search with `:Ag`; optional if you only use `:Rg` |
+| `glow` | Markdown preview with `:Glow` |
+| `git` | Plugin installation, Fugitive, GitGutter, and `:Commits` |
+| Node.js / npm | Coc.nvim and language-server installation |
+| `clangd` | C/C++ language support through coc-clangd |
+| `code-minimap` | Minimap rendering; see [Minimap renderer](#minimap-renderer) below |
+
+The Ubuntu package for `ag` is named `silversearcher-ag`. See the upstream installation instructions for [fzf](https://github.com/junegunn/fzf#installation) and [The Silver Searcher](https://github.com/ggreer/the_silver_searcher#installing).
+
+Install Glow from the [official Charm APT repository](https://github.com/charmbracelet/glow#installation):
+
+```bash
+sudo mkdir -p /etc/apt/keyrings
+curl -fsSL https://repo.charm.sh/apt/gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/charm.gpg
+echo "deb [signed-by=/etc/apt/keyrings/charm.gpg] https://repo.charm.sh/apt/ * *" | sudo tee /etc/apt/sources.list.d/charm.list
+sudo apt update
+sudo apt install glow
+```
+
+After installing the tools (including the minimap renderer below), check that Vim can find them:
+
+```vim
+:echo executable('fzf') executable('rg') executable('ag') executable('glow')
+:echo executable('git') executable('node') executable('npm') executable('clangd') executable('code-minimap')
+```
+
+Each installed tool should report `1`; `0` means it is missing from Vim's `PATH`.
+
+### Vim and terminal support
 
 Use a Vim build with job/channel, terminal, popup-window, and timer support. Coc.nvim needs the first two; the rest serve Glow, GitGutter, and FZF's preview scrolling:
 
