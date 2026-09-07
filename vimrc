@@ -28,6 +28,11 @@ Plugin 'wfxr/minimap.vim'
 
 call vundle#end()
 
+" Select devicons' OS symbol without running shell commands in the
+" statusline. Use the generic Linux symbol instead of probing the distro.
+let g:WebDevIconsOS = has('macunix') ? 'Darwin' : 'Unix'
+let g:DevIconsEnableDistro = 0
+
 """"""""""""""""""""""""""""
 " Coc.nvim Language Servers"
 """"""""""""""""""""""""""""
