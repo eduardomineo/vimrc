@@ -644,10 +644,23 @@ nnoremap <silent> <Down> <Down>:nohlsearch<CR>
 nnoremap <silent> <Left> <Left>:nohlsearch<CR>
 nnoremap <silent> <Right> <Right>:nohlsearch<CR>
 
-nnoremap <silent> <A-S-Left> :wincmd h<CR>
-nnoremap <silent> <A-S-Right> :wincmd l<CR>
-nnoremap <silent> <A-S-Up> :wincmd k<CR>
-nnoremap <silent> <A-S-Down> :wincmd j<CR>
+" Resolve the destination before moving so directional window navigation
+" can never focus the minimap, even briefly. A WinEnter autocmd that bounced
+" focus back would be unsafe here: minimap.vim deliberately enters its own
+" window while refreshing it.
+function! s:MoveWindowFocus(direction) abort
+  let l:target = winnr(a:direction)
+  if l:target == winnr()
+        \ || getbufvar(winbufnr(l:target), '&filetype') ==# 'minimap'
+    return
+  endif
+  execute l:target . 'wincmd w'
+endfunction
+
+nnoremap <silent> <A-S-Left> :call <SID>MoveWindowFocus('h')<CR>
+nnoremap <silent> <A-S-Right> :call <SID>MoveWindowFocus('l')<CR>
+nnoremap <silent> <A-S-Up> :call <SID>MoveWindowFocus('k')<CR>
+nnoremap <silent> <A-S-Down> :call <SID>MoveWindowFocus('j')<CR>
 
 nnoremap <Esc>< <C-W><
 nnoremap <Esc>> <C-W>>

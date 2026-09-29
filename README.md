@@ -249,6 +249,10 @@ The minimap opens automatically for every buffer (`g:minimap_auto_start = 1`); u
 
 New horizontal splits open below; vertical splits open to the right.
 
+Directional window navigation does not enter the minimap. If the minimap is
+the next window in the requested direction, focus remains in the current
+window.
+
 `Ctrl-Right`/`Ctrl-Left` are routed to the file window the same way FZF pickers are: triggering them from NERDTree, the minimap, or the diagnostics window switches the buffer shown in the file window rather than whichever panel had focus.
 
 `Alt-w` closes the current buffer, keeping the window: it switches to the alternate or another listed buffer if one exists, otherwise opens a blank one, then deletes the old buffer. It never falls back to NERDTree, the minimap, or a quickfix/location-list buffer.
