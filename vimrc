@@ -468,19 +468,28 @@ function! s:CloseBuffer() abort
     return
   endif
 
+  " An unnamed :enew buffer has nowhere to save to and is disposable by
+  " definition in this workflow. Allow Alt-w to abandon its contents while
+  " preserving the normal modified-buffer warning for named files.
+  let l:force = empty(bufname(l:target)) && &buftype ==# ''
+  if &modified && !l:force
+    echoerr 'E37: No write since last change (add ! to override)'
+    return
+  endif
+
   let l:alt = bufnr('#')
   if l:alt > 0 && l:alt != l:target && buflisted(l:alt)
-    execute 'buffer' l:alt
+    execute 'buffer' . (l:force ? '!' : '') l:alt
   else
     let l:others = filter(range(1, bufnr('$')), 'buflisted(v:val) && v:val != l:target')
     if !empty(l:others)
-      execute 'buffer' l:others[0]
+      execute 'buffer' . (l:force ? '!' : '') l:others[0]
     else
-      enew
+      execute 'enew' . (l:force ? '!' : '')
     endif
   endif
 
-  execute 'bdelete' l:target
+  execute 'bdelete' . (l:force ? '!' : '') l:target
 endfunction
 
 function! s:NERDTreeVisible() abort
